@@ -43,14 +43,14 @@ jobs:
           git config user.email "${{ secrets.NPM_EMAIL }}";
           echo "Hello $(git config --get user.name)";
       - run: npm run build
-      - run: npm run test
+      #- run: npm run test
 
-      - name: Test Report
-        uses: dorny/test-reporter@v1.5.0
-        with:
-          name: Tests
-          path: junit.json
-          reporter: mocha-json
+      #- name: Test Report
+      #  uses: dorny/test-reporter@v1.5.0
+      #  with:
+      #    name: Tests
+      #    path: junit.json
+      #    reporter: mocha-json
 
       # - run: npm test
       - name: output version
