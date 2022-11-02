@@ -1,0 +1,39 @@
+{
+  "name": "@bettercorp/betterportal-sdk",
+  "version": "0.0.1",
+  "description": "",
+  "scripts": {
+    "dev": "nodemon -L --watch src/**/*.ts --watch plugins/**/*.ts --exec ts-node src/index.ts",
+    "start": "node lib/index.js",
+    "build": "tsc",
+    "deploy": "npm publish",
+    "test": "node ./node_modules/nyc/bin/nyc.js --reporter json ./node_modules/mocha/bin/mocha.js --reporter json --reporter-options output=junit.json",
+    "testDev": "node ./node_modules/nyc/bin/nyc.js ./node_modules/mocha/bin/mocha.js"
+  },
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "url": "https://github.com/BetterCorp/BetterPortal-SDK"
+  },
+  "homepage": "https://www.betterportal.cloud/",
+  "files": [
+    "lib/**/*"
+  ],
+  "main": "lib/index.js",
+  "author": "BetterCorp",
+  "dependencies": {
+    "@bettercorp/tools": "^2.1.16",
+    "axios": "^1.1.2",
+    "dexie": "^3.2.2",
+    "mitt": "^3.0.0",
+    "vue-router": "^4.1.6"
+  },
+  "devDependencies": {
+    "@vue/devtools-api": "^6.4.4",
+    "mocha": "^10.0.0",
+    "nyc": "^15.1.0",
+    "ts-node": "^10.9.1",
+    "tslint": "^6.1.3",
+    "typescript": "^4.7.4",
+    "vue": "^3.2.40"
+  }
+}

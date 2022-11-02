@@ -1,0 +1,64 @@
+name: Pre-Release
+
+on:
+  push:
+    branches:
+      - "develop"
+
+jobs:
+  buildDevelop:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [16.x]
+        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+      - run: npm ci
+      - name: semver
+        id: semver
+        uses: paulhatch/semantic-version@v4.0.2
+        with:
+          tag_prefix: "v"
+          branch: develop
+          major_pattern: "(MAJOR)"
+          minor_pattern: "(MINOR)"
+          format: "${major}.${minor}.${patch}-beta"
+          change_path: "./"
+          bump_each_commit: true
+          namespace: ""
+      - run: rm -f ~/.npmrc ; rm -f ./.npmrc ; echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM2_TOKEN_PUB }}" > ./.npmrc
+      - run: |
+          git config user.name "${{ secrets.NPM_NAME }}";
+          git config user.email "${{ secrets.NPM_EMAIL }}";
+          echo "Hello $(git config --get user.name)";
+      - run: npm run build
+      - run: npm run test
+
+      - name: Test Report
+        uses: dorny/test-reporter@v1.5.0
+        with:
+          name: Tests
+          path: junit.json
+          reporter: mocha-json
+
+      # - run: npm test
+      - name: output version
+        run: |
+          echo "Setting version too: ${{ steps.semver.outputs.version }}";
+      - run: npm version ${{ steps.semver.outputs.version }}
+      - run: npm publish --tag beta
+
+      - name: cleanup
+        if: always()
+        run: rm -f ~/.npmrc ; rm -f ./.npmrc;
