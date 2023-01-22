@@ -1,0 +1,81 @@
+import { BetterPortal } from "../betterportal";
+import type { App, Plugin } from "vue";
+import { ref } from "vue";
+import type { WhoAmIDefinition } from "../whoami";
+import { setupDevtools } from "../vue.devtools";
+import mitt from "mitt";
+
+export interface BetterPortalVueOptions {
+  //whoAmIHost?: string;
+}
+
+const createBP = (options: BetterPortalVueOptions): BetterPortal => {
+  return new BetterPortal();
+};
+
+const emitter = mitt();
+
+export interface BetterPortalOptConfig {
+  inited: boolean;
+  ready: boolean;
+  config: WhoAmIDefinition | null;
+}
+export interface BetterPortalOptEvents {
+  ready: {
+    off: { (callback: { (config: WhoAmIDefinition): void }): void };
+    on: { (callback: { (config: WhoAmIDefinition): void }): void };
+    error: { (callback: { (data: any): void }): void };
+  };
+}
+
+export const BetterPortalVue: Plugin = {
+  install(app: App, options: BetterPortalVueOptions) {
+    app.config.globalProperties.$betterportal_events = {
+      ready: {
+        off: (callback: { (config: WhoAmIDefinition): void }) => {
+          emitter.off("ready", callback as any);
+        },
+        on: (callback: { (config: WhoAmIDefinition): void }) => {
+          emitter.on("ready", callback as any);
+        },
+        error: (callback: { (data: any): void }) => {
+          emitter.on("errorready", callback as any);
+        },
+      },
+    } as BetterPortalOptEvents;
+    app.config.globalProperties.$betterportal_opts = ref({
+      inited: false,
+      ready: false,
+      config: null,
+    } as BetterPortalOptConfig);
+    app.config.globalProperties.$betterportal = createBP(options);
+    app.mixin({
+      created() {
+        const ref = this.$betterportal_opts as BetterPortalOptConfig;
+        const bp = this.$betterportal as BetterPortal;
+        if (ref.inited === true) return;
+        console.log("init");
+        bp.whoami
+          .getApp()
+          .then((x) => {
+            console.log(x);
+            if (x.config.appType !== 3) {
+              console.error("Invalid app type!:" + x.config.appType);
+              emitter.emit("errorready", "Invalid app type");
+              return;
+            }
+            ref.config = x;
+            emitter.emit("ready", x);
+            ref.ready = true;
+          })
+          .catch((xc) => {
+            console.error(xc);
+            emitter.emit("errorready", xc);
+          });
+        ref.inited = true;
+      },
+    });
+    if (process.env.NODE_ENV === "development")
+      setupDevtools(app, app.config.globalProperties);
+  },
+};

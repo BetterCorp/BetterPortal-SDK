@@ -1,0 +1,56 @@
+//import { App } from "vue";
+import { setupDevtoolsPlugin } from "@vue/devtools-api";
+import type { BetterPortalOptConfig } from "./vue";
+
+const brandingConfig = {
+  id: "bettercorp-betterportal",
+  label: "BetterPortal",
+  packageName: "@bettercorp/betterportal",
+  homepage: "https://vuejs.org",
+};
+
+export function setupDevtools(app: any, globalProperties: any) {
+  setupDevtoolsPlugin(
+    {
+      ...brandingConfig,
+      app,
+    },
+    (api) => {
+      api.on.visitComponentTree((payload, context) => {
+        const node = payload.treeNode;
+        if (payload.componentInstance.uid === 0) {
+          node.tags.push({
+            label: "BetterPortal",
+            textColor: 0x000000,
+            backgroundColor: 0xff984f,
+          });
+        }
+      });
+      api.on.inspectComponent((payload, context) => {
+        if (payload.componentInstance.uid !== 0) {
+          api.notifyComponentUpdate();
+          return;
+        }
+        const ref =
+          globalProperties.$betterportal_opts as BetterPortalOptConfig;
+        //const bp = globalProperties.$betterportal as BetterPortal;
+        payload.instanceData.state.push({
+          type: brandingConfig.label,
+          key: "inited",
+          value: ref.inited,
+        });
+        payload.instanceData.state.push({
+          type: brandingConfig.label,
+          key: "ready",
+          value: ref.ready,
+        });
+
+        payload.instanceData.state.push({
+          type: brandingConfig.label,
+          key: "time counter",
+          value: "data.counter",
+        });
+      });
+    }
+  );
+}
