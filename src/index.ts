@@ -1,5 +1,8 @@
-export { BetterPortal } from "./betterportal";
-export { Vue as BPVue } from "./vue";
-export type { ServiceRoute, WhoAmIDefinition } from "./whoami";
-export type { ServiceRouteExpanded } from "./plugin";
-export type { BetterPortalWindow } from "./globals";
+export * from "./betterportal";
+export * from "./whoami";
+export * from "./plugin";
+export * from "./globals";
+export * from "./auth";
+export * from "./vue";
+export * from "./storage";
+export * from "./request";

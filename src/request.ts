@@ -34,6 +34,7 @@ export class Request {
   >(service?: string, specificBaseHost?: string) {
     let axiosConfig: CreateAxiosDefaults<any> = {
       headers: {},
+      withCredentials: true
     };
     axiosConfig.baseURL = specificBaseHost || "httpx://never.never";
 
@@ -45,7 +46,9 @@ export class Request {
 
     if (service === "whoami") {
       axiosConfig.baseURL =
-        specificBaseHost || "https://whoami.betterportal.cloud";
+        specificBaseHost ||
+        new Storage("whoami", ["host"]).get("host") ||
+        "https://whoami.betterportal.cloud";
       return axios.create(axiosConfig);
     }
     const appConfig = await new WhoAmI<Features, Definition>().getApp();
@@ -55,7 +58,7 @@ export class Request {
 
     const auth = new Auth();
     if (auth.isLoggedIn) {
-      (axiosConfig as any).headers["authorization"] = "BSBAuth " + auth.token;
+      (axiosConfig as any).headers["authorization"] = "BPAuth " + auth.token;
     }
     if (
       service !== undefined &&

@@ -1,7 +1,7 @@
 //import { Tools } from "@bettercorp/tools/lib/Tools";
 //import { App } from "vue";
 import type { Router } from "vue-router";
-import type { ServiceRouteExpanded } from './plugin';
+import type { ServiceRouteExpanded } from "./plugin";
 //import { ServiceRoute } from "./whoami";
 
 /*export interface VueRouterOptions {
@@ -30,6 +30,7 @@ export class Vue {
     layoutComponent: any
   ) {
     for (let route of routes) {
+      console.log("add " + route.path);
       router.addRoute({
         path: route.path,
         name: route.name,
@@ -72,3 +73,5 @@ export class Vue {
     }
   }*/
 }
+
+export * from "./vue/index";

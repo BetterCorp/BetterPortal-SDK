@@ -1,6 +1,7 @@
 import type { IDictionary } from "@bettercorp/tools/lib/Interfaces";
 import { Request } from "./request";
 import { Storage } from "./storage";
+import { Tools } from "@bettercorp/tools/lib/Tools";
 
 export type AxiosResponse<T = any> = {
   status: number;
@@ -13,7 +14,7 @@ export class WhoAmI<
 > {
   private storage: Storage;
   constructor(myHost?: string) {
-    this.storage = new Storage("whoami");
+    this.storage = new Storage("whoami", ["host"]);
   }
   async getApp(
     defaultParser?: {
@@ -25,43 +26,42 @@ export class WhoAmI<
     whoAmIHost?: string,
     hardcodedAppConfig?: Definition
   ): Promise<Definition> {
+    if (!Tools.isNullOrUndefined(whoAmIHost)) {
+      this.storage.set('host', whoAmIHost);
+    }
     if (hardcodedAppConfig !== undefined && hardcodedAppConfig !== null) {
-      this.storage.set("config", {
+      /*this.storage.set("whoami", "config", {
         data: hardcodedAppConfig,
         time: -1,
-      });
+      });*/
       return hardcodedAppConfig;
     }
-    return await this.storage.cachedGet<Definition>(
-      "config",
-      5 * 60 * 1000,
-      false,
-      async () => {
-        try {
-          let resp = await (
-            await Request.getAxios("whoami", whoAmIHost)
-          ).get<Definition>("/app");
-          if (resp.status !== 200) throw "Invalid APP";
-          if (defaultParser !== undefined) {
-            const respParsed = defaultParser(
-              resp.data.config || {},
-              resp.data.features || ({} as any)
-            );
-            resp.data.config = respParsed.config;
-            resp.data.features = respParsed.features;
-          }
-          if (resp.data.config.additionalServers !== undefined) {
-            resp.data.servers = {
-              ...resp.data.servers,
-              ...resp.data.config.additionalServers,
-            };
-          }
-          return resp.data;
-        } catch (exc: any) {
-          throw exc;
+    
+    return await this.storage.cachedREGet<Definition>("config", async () => {
+      try {
+        let resp = await (
+          await Request.getAxios("whoami", whoAmIHost)
+        ).get<Definition>("/app");
+        if (resp.status !== 202) throw "Invalid APP";
+        if (defaultParser !== undefined) {
+          const respParsed = defaultParser(
+            resp.data.config || {},
+            resp.data.features || ({} as any)
+          );
+          resp.data.config = respParsed.config;
+          resp.data.features = respParsed.features;
         }
+        if (resp.data.config.additionalServers !== undefined) {
+          resp.data.servers = {
+            ...resp.data.servers,
+            ...resp.data.config.additionalServers,
+          };
+        }
+        return resp.data;
+      } catch (exc: any) {
+        throw exc;
       }
-    );
+    }, 60000);
   }
 }
 
@@ -98,6 +98,7 @@ export interface Config {
   hostname: string;
   tenantId: string;
   title: string;
+  cfClientToken: string;
   active: boolean;
   appType: number;
   serviceMapping?: IDictionary<ServiceConfig>;
@@ -126,12 +127,12 @@ export interface ServiceConfigGlobalsMappedServiceParam {
   id: string;
   name: string;
   type: ServiceConfigGlobalsMappedServiceParamType;
-  options?: Array<string>
+  options?: Array<string>;
 }
 export interface ServiceConfigGlobalsMappedService {
   nameIdKey: string;
   serviceId: string;
-  params: Array<ServiceConfigGlobalsMappedServiceParam>
+  params: Array<ServiceConfigGlobalsMappedServiceParam>;
 }
 export interface ServiceConfigGlobals {
   mappedServices: Array<ServiceConfigGlobalsMappedService>;

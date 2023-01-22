@@ -3,6 +3,7 @@ import { WhoAmI } from "./whoami";
 import type { WhoAmIDefinition } from "./whoami";
 import { Storage } from "./storage";
 import type { BetterPortalWindow } from "./globals";
+import { Tools } from "@bettercorp/tools/lib/Tools";
 declare let window: BetterPortalWindow;
 
 export class WS<
@@ -40,8 +41,12 @@ export class WS<
     this.wsClient.close();
   }
   constructor(subscriptions?: Array<string>, lightInit: boolean = false) {
-    this.storage = new Storage("ws");
+    this.storage = new Storage("ws", true);
     if (lightInit) return;
+    if (!Tools.isNullOrUndefined(this.storage.get("tabId"))) {
+      return; // light init forced
+    }
+    this.storage.set("tabId", Math.floor(Math.random() * 1000000));
     this.subscriptions = subscriptions || [];
     this.whoAmI = new WhoAmI();
     this.auth = new Auth();

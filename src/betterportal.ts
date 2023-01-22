@@ -7,7 +7,7 @@ import { Request } from "./request";
 import mitt from "mitt";
 import type { BetterPortalWindow } from "./globals";
 import type { AxiosInstance } from "axios";
-import { Plugins } from './plugin';
+import { Plugins } from "./plugin";
 declare let window: BetterPortalWindow;
 
 export class BetterPortal<
@@ -39,32 +39,41 @@ export class BetterPortal<
     hardcodedAppConfig?: Definition
   ): Promise<void> {
     const self = this;
-    return new Promise(async (r) => {
-      window.bsb = window.bsb || {};
-      window.bsb.betterportal = window.bsb.betterportal || {};
-      window.bsb.betterportal.events = mitt();
-      await self.whoami.getApp(defaultParser, whoAmIHost, hardcodedAppConfig);
-      await self.auth.window();
-      self.ws
-        .connect()
-        .then(() => {
-          window.bsb.betterportal.ws = window.bsb.betterportal.ws || {};
-          window.bsb.betterportal.ws.ping = () => self.ws.ping();
-          window.bsb.betterportal.ws.subscriptions =
-            window.bsb.betterportal.ws.subscriptions || {};
-          window.bsb.betterportal.ws.subscriptions.add = (
-            subscriptions: Array<string>
-          ) => {
-            self.ws.addSubscription(subscriptions);
-          };
-          window.bsb.betterportal.ws.subscriptions.remove = (
-            subscriptions: Array<string>
-          ) => {
-            self.ws.removeSubscription(subscriptions);
-          };
-        })
-        .catch(console.error);
-      r();
+    return new Promise(async (r, er) => {
+      try {
+        window.bsb = window.bsb || {};
+        window.bsb.storage = window.bsb.storage || {};
+        window.bsb.ws = window.bsb.ws || {};
+        window.bsb.betterportal = window.bsb.betterportal || {};
+        window.bsb.betterportal.events = mitt();
+        
+        console.log("init as: ", whoAmIHost);
+        await self.whoami.getApp(defaultParser, whoAmIHost, hardcodedAppConfig);
+        console.log("init as2: ", whoAmIHost);
+        await self.auth.window();
+        self.ws
+          .connect()
+          .then(() => {
+            window.bsb.betterportal.ws = window.bsb.betterportal.ws || {};
+            window.bsb.betterportal.ws.ping = () => self.ws.ping();
+            window.bsb.betterportal.ws.subscriptions =
+              window.bsb.betterportal.ws.subscriptions || {};
+            window.bsb.betterportal.ws.subscriptions.add = (
+              subscriptions: Array<string>
+            ) => {
+              self.ws.addSubscription(subscriptions);
+            };
+            window.bsb.betterportal.ws.subscriptions.remove = (
+              subscriptions: Array<string>
+            ) => {
+              self.ws.removeSubscription(subscriptions);
+            };
+          })
+          .catch(console.error);
+        r();
+      } catch (exc) {
+        er(exc);
+      }
     });
   }
 }

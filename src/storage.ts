@@ -1,6 +1,8 @@
 import type { IDictionary } from "@bettercorp/tools/lib/Interfaces";
 import { Dexie } from "dexie";
 import type { Table } from "dexie";
+import type { BetterPortalWindow } from "./globals";
+declare let window: BetterPortalWindow;
 
 export interface DBTable extends Table {
   id: string;
@@ -67,30 +69,63 @@ export class StorageSimpleDB {
     await this.db.data.delete(key);
   }
 }
-export interface StorageCached<T = any> {
+export interface StorageBasicCached<T = any> {
   time: number;
-  getResets: boolean;
   data: T;
+}
+export interface StorageCached<T = any> extends StorageBasicCached<T> {
+  getResets: boolean;
 }
 export class Storage<T = any> {
   private pluginKey?: string;
-  constructor(pluginKey: string) {
+  private canLocal: boolean | Array<string> = false;
+  private canLocalKey(key: string): boolean {
+    if (key.indexOf("_cache-") === 0) return true;
+    if (key.indexOf("_scache-") === 0) return false;
+    if (this.canLocal === false) return false;
+    if (this.canLocal === true) return true;
+    return this.canLocal.indexOf(key) >= 0;
+  }
+  constructor(pluginKey: string, canLocal?: boolean | Array<string>) {
     this.pluginKey = pluginKey;
+    if (window !== undefined) {
+      window.bsb = window.bsb || {};
+      window.bsb.storage = window.bsb.storage || {};
+      this.canLocal = canLocal || false;
+    }
   }
   private getKey(key: string): string {
     if (this.pluginKey === undefined) return key;
     return `${this.pluginKey}-${key}`;
   }
   public get<Data = T>(key: string): null | Data {
+    if (this.canLocalKey(key)) {
+      window.bsb.storage[this.pluginKey || "-"] =
+        window.bsb.storage[this.pluginKey || "-"] || {};
+      return window.bsb.storage[this.pluginKey || "-"][key] || null;
+    }
     let data = window.localStorage.getItem(this.getKey(key));
     if (typeof data !== "string") return null;
     return JSON.parse(data);
   }
   public set<Data = T>(key: string, data: Data): void {
+    if (this.canLocalKey(key)) {
+      window.bsb.storage[this.pluginKey || "-"] =
+        window.bsb.storage[this.pluginKey || "-"] || {};
+      window.bsb.storage[this.pluginKey || "-"][key] = data;
+      return;
+    }
     if (data === undefined || data === null) return this.delete(key);
     window.localStorage.setItem(this.getKey(key), JSON.stringify(data));
   }
   public delete(key: string): void {
+    if (this.canLocalKey(key)) {
+      window.bsb.storage[this.pluginKey || "-"] =
+        window.bsb.storage[this.pluginKey || "-"] || {};
+      window.bsb.storage[this.pluginKey || "-"][key] = undefined;
+      delete window.bsb.storage[this.pluginKey || "-"][key];
+      return;
+    }
     window.localStorage.removeItem(this.getKey(key));
   }
 
@@ -120,6 +155,49 @@ export class Storage<T = any> {
           self.set<StorageCached<Data>>(key, {
             time: new Date().getTime(),
             getResets,
+            data: x,
+          });
+          resolve(x);
+        })
+        .catch((xc) => {
+          reject(xc);
+        });
+    });
+  }
+  public async cachedREGet<Data = T>(
+    key: string,
+    asyncRequest: { (): Promise<Data> },
+    minRePeriod: number,
+    bustCache: boolean = false
+  ): Promise<Data> {
+    const self = this;
+    return new Promise((resolve, reject): void => {
+      let storedData = self.get<StorageBasicCached<Data>>(key);
+      if (storedData !== null && bustCache !== true) {
+        if (storedData.time === -1) return resolve(storedData.data);
+        if (new Date().getTime() - minRePeriod > storedData.time) {
+          if (self.get<boolean>(`_cache-${key}`) !== true) {
+            self.set<boolean>(`_cache-${key}`, true);
+            asyncRequest()
+              .then((x) => {
+                self.set<StorageBasicCached<Data>>(key, {
+                  time: new Date().getTime(),
+                  data: x,
+                });
+                self.set<boolean>(`_cache-${key}`, false);
+              })
+              .catch((xc) => {
+                console.error(xc);
+              });
+          }
+        }
+        return resolve(storedData.data);
+      }
+      asyncRequest()
+        .then((x) => {
+          self.set<boolean>(`_cache-${key}`, false);
+          self.set<StorageBasicCached<Data>>(key, {
+            time: new Date().getTime(),
             data: x,
           });
           resolve(x);

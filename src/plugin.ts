@@ -108,17 +108,23 @@ export class Plugin<
     return appConfig.config.serviceMapping[this._serviceName].globals
       .subscriptions;
   }
-  public async getUIComponent(uiComponent: string): Promise<string> {
+  public async getUIComponent(uiComponent: string): Promise<{content: string, hash: string}> {
     let appConfig = await this.whoAmI.getApp();
-    return (
-      await (
-        await Request.getAxios(this._serviceName)
-      ).get(`/bpui/${appConfig.config.appType}/${uiComponent}.js`)
-    ).data;
+    const resq = await (
+      await Request.getAxios(this._serviceName)
+    ).get(`/bpui/${appConfig.config.appType}/${uiComponent}.vue`);
+    return {
+      content: resq.data,
+      hash: resq.headers['ETag']?.toString() || '-'
+    };
   }
   public async getUIComponentAssetURL(assetPath: string): Promise<string> {
     //if (assetPath.indexOf('@/') !== 0) return assetPath;    
     return `${await Request.getAxiosBaseURL(this._serviceName)}/bpui/${assetPath}`
+  }
+  public async getUIComponentLibURL(assetPath: string): Promise<string> {
+    //if (assetPath.indexOf('@/') !== 0) return assetPath;    
+    return `${await Request.getAxiosBaseURL(this._serviceName)}/bpui/lib/${assetPath.split('/bpui/lib/')[1]}`
   }
   /*public async window(): Promise<void> {
 

@@ -3,19 +3,21 @@ import { Request } from "./request";
 import { WS } from "./ws";
 import type { AxiosResponse } from "axios";
 import type { BetterPortalWindow } from "./globals";
-import type { WhoAmIDefinition } from "./whoami";
+import { WhoAmI, type WhoAmIDefinition } from "./whoami";
+import * as oauth from "oauth4webapi";
 declare let window: BetterPortalWindow;
 
 export interface AuthToken {
   tenantId: string;
+  appUrl: string;
   appId: string;
   authedAppId: string;
   userId: string;
   name: string;
   surname: string;
-  email: string;
-  cell: string;
-  clients: { [key: string]: Client };
+  //email: string;
+  //cell: string;
+  client: Client;
   sessionStarted: number;
   sessionKey: string;
   last2FATime: number;
@@ -28,6 +30,7 @@ export interface AuthToken {
 }
 
 export interface Client {
+  id: string;
   name: string;
   enabled: boolean;
   sar: Sar;
@@ -93,11 +96,11 @@ export class Auth<
   }
   get client(): Client | null {
     if (!this.isLoggedIn) return null;
-    if (this.clientId === null) return null;
-    return this.user!.clients[this.clientId];
+    return this.user!.client;
   }
   get clientId(): string | null {
-    return this.storage.get<string>("client");
+    if (!this.isLoggedIn) return null;
+    return this.user!.client.id;
   }
   get user(): AuthToken | null {
     return this.storage.get<AuthToken>("user");
@@ -117,25 +120,169 @@ export class Auth<
       window.bsb.betterportal.events.emit("_client", null);
     }
   }
-  public selectClient(clientId: string): boolean {
+  /*public selectClient(clientId: string): boolean {
     if (!this.isLoggedIn) return false;
     if (this.user!.clients[clientId] === undefined) return false;
     this.storage.set("client", clientId);
     if (window.bsb.betterportal !== undefined)
       window.bsb.betterportal.events.emit("_client", clientId);
     return true;
-  }
-  public async login(auth: AuthRequest): Promise<{
-    status: AuthResponse;
-    message?: string;
-  }> {
-    let resp = await (
-      await Request.getAxios("auth")
-    ).post("/auth", {
-      ...auth,
-      session: this.ws.sessionId,
+  }*/
+  /*private async discoveryRequest(issuerIdentifier: URL, options?: oauth.DiscoveryRequestOptions) {
+    if (!(issuerIdentifier instanceof URL)) {
+        throw new TypeError('"issuerIdentifier" must be an instance of URL');
+    }
+    if (issuerIdentifier.protocol !== 'https:' && issuerIdentifier.protocol !== 'http:') {
+        throw new TypeError('"issuer.protocol" must be "https:" or "http:"');
+    }
+    const url = new URL(issuerIdentifier.href);
+    switch (options?.algorithm) {
+        case undefined:
+        case 'oidc':
+            url.pathname = `${url.pathname}/.well-known/openid-configuration`.replace('//', '/');
+            break;
+        case 'oauth2':
+            if (url.pathname === '/') {
+                url.pathname = `.well-known/oauth-authorization-server`;
+            }
+            else {
+                url.pathname = `.well-known/oauth-authorization-server/${url.pathname}`.replace('//', '/');
+            }
+            break;
+        default:
+            throw new TypeError('"options.algorithm" must be "oidc" (default), or "oauth2"');
+    }
+    const headers = prepareHeaders(options?.headers);
+    headers.set('accept', 'application/json');
+    return fetch(url.href, {
+        headers,
+        method: 'GET',
+        redirect: 'manual',
+        signal: options?.signal ? signal(options.signal) : null,
+    }).then(processDpopNonce);
+}*/
+  public async login(): Promise<void> {
+    //const self = this;
+    const authURL = await Request.getAxiosBaseURL("auth");
+    console.log("auth too: " + authURL);
+    const issuer = new URL(authURL);
+    console.log("auth issx: ", issuer);
+    const discovIss = await oauth.discoveryRequest(issuer, {
+      algorithm: "oauth2",
     });
-    return this.handleAuthResponse(resp);
+    console.log("auth oauth: ", issuer);
+    const procIss = await oauth.processDiscoveryResponse(issuer, discovIss);
+    console.log("proc oauth: ", issuer);
+
+    const appConfig = await new WhoAmI<Features, Definition>().getApp();
+
+    console.log("auth as:" + authURL);
+    const client: oauth.Client = {
+      client_id: appConfig.appId,
+      token_endpoint_auth_method: "none",
+    };
+
+    const params = new Proxy(new URLSearchParams(window.location.search), {
+      get: (searchParams, prop: string) => searchParams.get(prop),
+    }) as any as { redirectFrom?: string };
+
+    const redirect_uri =
+      params.redirectFrom || window.location.origin + window.location.pathname;
+
+    console.log("redirect from:" + redirect_uri);
+    if (procIss.code_challenge_methods_supported?.includes("S256") !== true) {
+      // This example assumes S256 PKCE support is signalled
+      // If it isn't supported, random `state` must be used for CSRF protection.
+      throw new Error("S256 not supposed");
+    }
+    console.log("code_verifierx");
+    const code_verifier = oauth.generateRandomCodeVerifier();
+    new Storage("oauth").set("code_verifierx", code_verifier);
+    //console.log('code_verifier',code_verifier)
+    const code_challenge = await oauth.calculatePKCECodeChallenge(
+      code_verifier
+    );
+    const code_challenge_method = "S256";
+
+    {
+      // redirect user to as.authorization_endpoint
+
+      console.log("start auth to: " + procIss.authorization_endpoint!);
+      const authorizationUrl = new URL(procIss.authorization_endpoint!);
+      authorizationUrl.searchParams.set("client_id", client.client_id);
+      authorizationUrl.searchParams.set("code_challenge", code_challenge);
+      authorizationUrl.searchParams.set(
+        "code_challenge_method",
+        code_challenge_method
+      );
+      authorizationUrl.searchParams.set("redirect_uri", redirect_uri);
+      authorizationUrl.searchParams.set("response_type", "code");
+      authorizationUrl.searchParams.set("scope", "openid profile");
+      console.log("redirect auth to: " + authorizationUrl.toString());
+      window.location.href = authorizationUrl.toString();
+    }
+  }
+  public async loginFinalize() {
+    const authURL = await Request.getAxiosBaseURL("auth");
+    console.log("auth too: " + authURL);
+    const issuer = new URL(authURL);
+    console.log("auth issx: ", issuer);
+    const discovIss = await oauth.discoveryRequest(issuer, {
+      algorithm: "oauth2",
+    });
+    console.log("auth oauth: ", issuer);
+    const procIss = await oauth.processDiscoveryResponse(issuer, discovIss);
+    console.log("proc oauth: ", issuer);
+    const currentUrl: URL = new URL(window.location.href);
+    const appConfig = await new WhoAmI<Features, Definition>().getApp();
+    const client: oauth.Client = {
+      client_id: appConfig.appId,
+      token_endpoint_auth_method: "none",
+    };
+    const parameters = oauth.validateAuthResponse(
+      procIss,
+      client,
+      currentUrl,
+      oauth.expectNoState
+    );
+    if (oauth.isOAuth2Error(parameters)) {
+      console.log("error", parameters);
+      throw new Error(); // Handle OAuth 2.0 redirect error
+    }
+
+    const params = new Proxy(new URLSearchParams(window.location.search), {
+      get: (searchParams, prop: string) => searchParams.get(prop),
+    }) as any as { redirectFrom?: string };
+
+    const redirect_uri =
+      params.redirectFrom || window.location.origin + window.location.pathname;
+    const response = await oauth.authorizationCodeGrantRequest(
+      procIss,
+      client,
+      parameters,
+      redirect_uri,
+      new Storage("oauth").get("code_verifierx") || "XX"
+    );
+
+    let challenges: oauth.WWWAuthenticateChallenge[] | undefined;
+    if ((challenges = oauth.parseWwwAuthenticateChallenges(response))) {
+      for (const challenge of challenges) {
+        console.log("challenge", challenge);
+      }
+      throw new Error(); // Handle www-authenticate challenges as needed
+    }
+
+    const result = await oauth.processAuthorizationCodeOAuth2Response(
+      procIss,
+      client,
+      response
+    );
+    if (oauth.isOAuth2Error(result)) {
+      console.log("error", result);
+      throw result; // Handle OAuth 2.0 response body error
+    }
+
+    console.log("result", result);
   }
   private handleAuthResponse(resp: AxiosResponse): {
     status: AuthResponse;
@@ -146,6 +293,11 @@ export class Auth<
       self.logout();
       return x;
     };
+    if (resp === undefined || resp === null)
+      return fail({
+        status: AuthResponse.INVALID_DATA,
+        message: "Request Error",
+      });
     if (resp.status === 400)
       return fail({ status: AuthResponse.INVALID_DATA, message: resp.data });
     if (resp.status === 403)

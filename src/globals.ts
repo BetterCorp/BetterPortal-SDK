@@ -10,6 +10,7 @@ export interface BPW_BSB_BP_WS {
 }
 export interface BSPEvents extends Record<EventType, any> {}
 export interface BPW_BSB_BP_WHOAMI {
+  host: string;
   get: { async<T extends WhoAmIDefinition = WhoAmIDefinition>(): Promise<T> };
 }
 export interface BPW_BSB_BP {
@@ -19,7 +20,13 @@ export interface BPW_BSB_BP {
 }
 export interface BPW_BSB {
   betterportal: BPW_BSB_BP;
+  tabId: number;
+  ws: {
+    sessionId: string | null;
+    connected: boolean;
+  },
+  storage: any
 }
 export interface BetterPortalWindow extends Window {
-  bsb: BPW_BSB;
+  bsb: BPW_BSB
 }
