@@ -1,6 +1,6 @@
 {
   "name": "@bettercorp/betterportal-sdk",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "",
   "scripts": {
     "dev": "nodemon -L --watch src/**/*.ts --watch plugins/**/*.ts --exec ts-node src/index.ts",
