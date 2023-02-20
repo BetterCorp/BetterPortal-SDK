@@ -1,10 +1,12 @@
 import { DB, Storage } from "./storage";
 import { Request } from "./request";
-import { WS } from "./ws";
-import type { AxiosResponse } from "axios";
+//import { WS } from "./ws";
+//import type { AxiosResponse } from "axios";
 import type { BetterPortalWindow } from "./globals";
 import { WhoAmI, type WhoAmIDefinition } from "./whoami";
 import * as oauth from "oauth4webapi";
+import { Tools } from "@bettercorp/tools";
+import { IDictionary } from "@bettercorp/tools/lib/Interfaces";
 declare let window: BetterPortalWindow;
 
 export interface AuthToken {
@@ -67,19 +69,54 @@ export enum AuthResponse {
 
 export interface AuthDB extends DB {}
 
+export interface OAuthAccessToken {
+  clientId?: string;
+  clientName?: string;
+  clientPermissions?: IDictionary<Array<string>>;
+  verified: boolean;
+  name: string;
+  surname: string;
+  email: string;
+  userId: string;
+  appId: string;
+  tenantId: string;
+  ip: string;
+  cid: string;
+  scope: string;
+  sub: string;
+  exp: number;
+  expMS: number;
+  nbf: number;
+  iat: number;
+  jti: string;
+  issuer: string;
+}
+
+export interface OAuthRefreshToken {
+  client_id: string;
+  access_token_id: string;
+  refresh_token_id: string;
+  scope: string;
+  user_id: string;
+  expire_time: number;
+  subject: string;
+  issuer: string;
+  iat: number;
+}
+
 export class Auth<
   Features,
   Definition extends WhoAmIDefinition<Features> = WhoAmIDefinition<Features>
 > {
   private storage: Storage;
-  private ws: WS<Features, Definition>;
+  //private ws: WS<Features, Definition>;
   private timer: NodeJS.Timer | null = null;
   constructor() {
-    this.storage = new Storage("auth");
-    this.ws = new WS(undefined, true);
-    if (this.isLoggedIn) {
+    this.storage = new Storage("auth", false);
+    //this.ws = new WS(undefined, true);
+    if (this.isLoggedIn && this.accessToken !== null) {
       let now = new Date().getTime();
-      if (this.user!.expires < now) {
+      if (this.accessToken.expMS < now) {
         this.logout();
       }
     }
@@ -94,31 +131,86 @@ export class Auth<
     }, 5 * 60 * 1000);
     await self.refresh();
   }
-  get client(): Client | null {
+  /*get client(): Client | null {
     if (!this.isLoggedIn) return null;
     return this.user!.client;
-  }
+  }*/
   get clientId(): string | null {
     if (!this.isLoggedIn) return null;
-    return this.user!.client.id;
+    if (!this.accessToken) return null;
+    return this.accessToken.clientId ?? null;
   }
-  get user(): AuthToken | null {
-    return this.storage.get<AuthToken>("user");
+  get clientName(): string | null {
+    if (!this.isLoggedIn) return null;
+    if (!this.accessToken) return null;
+    return this.accessToken.clientName ?? null;
   }
-  get token(): string | null {
-    return this.storage.get<string>("token");
+  // get user(): AuthToken | null {
+  //   return this.storage.get<AuthToken>("user");
+  // }
+  get accessToken(): OAuthAccessToken | null {
+    return this.storage.get<OAuthAccessToken>("access_token");
   }
+  get accessTokenString(): string | null {
+    return this.storage.get<string>("oauth_access_token");
+  }
+  get refreshToken(): OAuthRefreshToken | null {
+    return this.storage.get<OAuthRefreshToken>("refresh_token");
+  }
+  get refreshTokenString(): string | null {
+    return this.storage.get<string>("oauth_refresh_token");
+  }
+  // get idToken(): string | null {
+  //   return this.storage.get<string>("oauth_id_token");
+  // }
   get isLoggedIn(): boolean {
-    return this.storage.get<string>("token") !== null;
+    return this.accessTokenString !== null;
   }
-  public logout(): void {
-    this.storage.delete("token");
-    this.storage.delete("client");
-    this.storage.delete("user");
+  public async logout(): Promise<void> {
     if (window.bsb.betterportal !== undefined) {
       window.bsb.betterportal.events.emit("_auth", null);
       window.bsb.betterportal.events.emit("_client", null);
     }
+    const authURL = await Request.getAxiosBaseURL("auth");
+    console.log("auth too: " + authURL);
+    const issuer = new URL(authURL);
+    console.log("auth issx: ", issuer);
+    const discovIss = await oauth.discoveryRequest(issuer, {
+      algorithm: "oauth2",
+    });
+    console.log("auth oauth: ", issuer);
+    const procIss = await oauth.processDiscoveryResponse(issuer, discovIss);
+    console.log("proc oauth: ", issuer);
+    const appConfig = await new WhoAmI<Features, Definition>().getApp();
+    const client: oauth.Client = {
+      client_id: appConfig.appId,
+      token_endpoint_auth_method: "none",
+    };
+    if (!Tools.isNullOrUndefined(this.refreshTokenString))
+      console.warn(
+        await oauth.revocationRequest(procIss, client, this.refreshTokenString)
+      );
+    /*if (!Tools.isNullOrUndefined(this.accessTokenString))
+      console.warn(
+        await oauth.revocationRequest(procIss, client, this.accessTokenString)
+      );*/
+    /*if (!Tools.isNullOrUndefined(this.idToken))
+      console.warn(
+        await oauth.revocationRequest(procIss, client, this.idToken)
+      );*/
+    this.storage.delete("original_url");
+    this.storage.delete("oauth_refresh_token");
+    this.storage.delete("oauth_access_token");
+    this.storage.delete("oauth_id_token");
+    this.storage.delete("refresh_token");
+    this.storage.delete("access_token");
+    this.storage.delete("id_token");
+    window.location.href = `${
+      procIss.authorization_endpoint
+    }?action=logout&client_id=${
+      appConfig.appId
+    }&redirect_uri=${encodeURIComponent(window.location.href)}`;
+    //oauth.revocationRequest
   }
   /*public selectClient(clientId: string): boolean {
     if (!this.isLoggedIn) return false;
@@ -182,9 +274,10 @@ export class Auth<
       token_endpoint_auth_method: "none",
     };
 
-    const params = new Proxy(new URLSearchParams(window.location.search), {
+    const sParams = new URLSearchParams(window.location.search);
+    const params = new Proxy(sParams, {
       get: (searchParams, prop: string) => searchParams.get(prop),
-    }) as any as { redirectFrom?: string };
+    }) as any as IDictionary<string | undefined>;
 
     const redirect_uri =
       params.redirectFrom || window.location.origin + window.location.pathname;
@@ -197,7 +290,7 @@ export class Auth<
     }
     console.log("code_verifierx");
     const code_verifier = oauth.generateRandomCodeVerifier();
-    new Storage("oauth").set("code_verifierx", code_verifier);
+    this.storage.set("oauth_code_verifierx", code_verifier);
     //console.log('code_verifier',code_verifier)
     const code_challenge = await oauth.calculatePKCECodeChallenge(
       code_verifier
@@ -218,8 +311,18 @@ export class Auth<
       authorizationUrl.searchParams.set("redirect_uri", redirect_uri);
       authorizationUrl.searchParams.set("response_type", "code");
       authorizationUrl.searchParams.set("scope", "openid profile");
-      console.log("redirect auth to: " + authorizationUrl.toString());
-      window.location.href = authorizationUrl.toString();
+      let endAuthUrl = authorizationUrl.toString();
+      console.log("Auth redirect auth to: " + endAuthUrl);
+      for (let objKeyA of sParams) {
+        const key = objKeyA[0];
+        const value = objKeyA[1];
+        if (key == "redirectFrom") continue;
+        if (!Tools.isString(value)) continue;
+        if (value.length < 2) continue;
+        endAuthUrl += endAuthUrl.indexOf("?") > 0 ? "&" : "?";
+        endAuthUrl += "bp_" + key + "=" + encodeURIComponent(value);
+      }
+      window.location.href = endAuthUrl;
     }
   }
   public async loginFinalize() {
@@ -247,7 +350,7 @@ export class Auth<
     );
     if (oauth.isOAuth2Error(parameters)) {
       console.log("error", parameters);
-      throw new Error(); // Handle OAuth 2.0 redirect error
+      throw new Error("Authentication redirect error"); // Handle OAuth 2.0 redirect error
     }
 
     const params = new Proxy(new URLSearchParams(window.location.search), {
@@ -261,7 +364,7 @@ export class Auth<
       client,
       parameters,
       redirect_uri,
-      new Storage("oauth").get("code_verifierx") || "XX"
+      this.storage.get("oauth_code_verifierx") || "XX"
     );
 
     let challenges: oauth.WWWAuthenticateChallenge[] | undefined;
@@ -269,7 +372,7 @@ export class Auth<
       for (const challenge of challenges) {
         console.log("challenge", challenge);
       }
-      throw new Error(); // Handle www-authenticate challenges as needed
+      throw new Error("Auth challenge error"); // Handle www-authenticate challenges as needed
     }
 
     const result = await oauth.processAuthorizationCodeOAuth2Response(
@@ -277,14 +380,43 @@ export class Auth<
       client,
       response
     );
+
+    this.storage.delete("oauth_code_verifierx");
+    this.parseTokenResult(result);
+  }
+  private parseTokenResult(
+    result:
+      | oauth.OAuth2Error
+      | oauth.OAuth2TokenEndpointResponse
+      | oauth.TokenEndpointResponse
+  ) {
     if (oauth.isOAuth2Error(result)) {
-      console.log("error", result);
+      console.error("error", result);
       throw result; // Handle OAuth 2.0 response body error
     }
 
     console.log("result", result);
+    if (result.token_type !== "bearer")
+      throw "Unable to process authenticated token";
+    this.storage.set("oauth_access_token", result.access_token);
+    let jwt = this.parseJwt(result.access_token);
+    jwt.expMS = jwt.exp * 1000;
+    this.storage.set("access_token", jwt);
+    window.bsb.betterportal.events.emit("_auth", true);
+    window.bsb.betterportal.events.emit(
+      "_client",
+      this.accessToken!.clientId ?? null
+    );
+    if (!Tools.isNullOrUndefined(result.refresh_token)) {
+      this.storage.set("oauth_refresh_token", result.refresh_token);
+      this.storage.set("refresh_token", this.parseJwt(result.refresh_token));
+    }
+    if (!Tools.isNullOrUndefined(result.id_token)) {
+      this.storage.set("oauth_id_token", result.id_token);
+      this.storage.set("id_token", this.parseJwt(result.id_token));
+    }
   }
-  private handleAuthResponse(resp: AxiosResponse): {
+  /*private handleAuthResponse(resp: AxiosResponse): {
     status: AuthResponse;
     message?: string;
   } {
@@ -329,10 +461,64 @@ export class Auth<
     }
     fail({} as any);
     throw "Unknown Response from server";
+  }*/
+  private parseJwt(token: string) {
+    var base64Url = token.split(".")[1];
+    var base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    var jsonPayload = decodeURIComponent(
+      window
+        .atob(base64)
+        .split("")
+        .map(function (c) {
+          return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+        })
+        .join("")
+    );
+
+    return JSON.parse(jsonPayload);
   }
   private async refresh(): Promise<void> {
     try {
       if (!this.isLoggedIn) return;
+      if (this.accessToken === null) return;
+      if (this.accessTokenString === null) return;
+      if (this.refreshTokenString === null) return;
+      let nowRF = new Date().getTime();
+      if (this.accessToken.expMS - 5 * 60 * 1000 > nowRF) return;
+      const authURL = await Request.getAxiosBaseURL("auth");
+      console.log("auth too: " + authURL);
+      const issuer = new URL(authURL);
+      console.log("auth issx: ", issuer);
+      const discovIss = await oauth.discoveryRequest(issuer, {
+        algorithm: "oauth2",
+      });
+      console.log("auth oauth: ", issuer);
+      const procIss = await oauth.processDiscoveryResponse(issuer, discovIss);
+      console.log("proc oauth: ", issuer);
+      const appConfig = await new WhoAmI<Features, Definition>().getApp();
+      const client: oauth.Client = {
+        client_id: appConfig.appId,
+        token_endpoint_auth_method: "none",
+      };
+      let refreshReq = await oauth.refreshTokenGrantRequest(
+        procIss,
+        client,
+        this.refreshTokenString
+      );
+      let refreshResp = await oauth.processRefreshTokenResponse(
+        procIss,
+        client,
+        refreshReq
+      );
+      this.parseTokenResult(refreshResp);
+      console.log(refreshResp);
+      /*const userRequest = await oauth.userInfoRequest(
+        procIss,
+        client,
+        this.accessTokenString
+      );
+      if (userRequest.status === 202) {
+      }
       let resp = await (
         await Request.getAxios("auth")
       ).patch("/auth", {
@@ -341,9 +527,10 @@ export class Auth<
       const respAuth = this.handleAuthResponse(resp);
       if (respAuth.status == AuthResponse.ACCEPTED) return;
       console.warn("user logged out");
-      this.logout();
+      this.logout();*/
     } catch (exc) {
       console.error(exc);
+      this.logout();
     }
   }
 

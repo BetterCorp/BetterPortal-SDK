@@ -52,9 +52,10 @@ export class vuefyRules {
         `${propName} is ${256 - v.length} characters too long`,
     ];
   }
-  public static basicIntlTel(propName: string):Array<any> {
+  public static basicIntlTel(propName: string): Array<any> {
     return [
       (v?: string) => !!v || `${propName} is required`,
+      (v?: string) => !!v || true,
       (v: string) =>
         /^\+.*$/.test(v) ||
         `${propName} must be a valid international telephone number - eg: +27/+1`,
@@ -62,6 +63,19 @@ export class vuefyRules {
         /^\+((?:9[679]|8[035789]|6[789]|5[90]|42|3[578]|2[1-689])|9[0-58]|8[1246]|6[0-6]|5[1-8]|4[013-9]|3[0-469]|2[70]|7|1)(?:\W*\d){0,13}\d$/.test(
           v
         ) || `${propName} must be a valid number`,
+    ];
+  }
+  public static optional(
+    propName: string,
+    rules: { (propName: string): Array<any> }
+  ): Array<any> {
+    return [
+      (v?: string) =>
+        v === undefined || v.length === 0
+          ? true
+          : rules(propName)
+              .map((rule) => rule(v))
+              .filter((result) => result !== true)[0] ?? true,
     ];
   }
   public static basicRequired(propName: string) {

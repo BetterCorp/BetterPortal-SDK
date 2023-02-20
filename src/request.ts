@@ -58,7 +58,7 @@ export class Request {
 
     const auth = new Auth();
     if (auth.isLoggedIn) {
-      (axiosConfig as any).headers["authorization"] = "BPAuth " + auth.token;
+      (axiosConfig as any).headers["authorization"] = "Bearer " + auth.accessToken;
     }
     if (
       service !== undefined &&

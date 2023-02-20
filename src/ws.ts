@@ -66,11 +66,11 @@ export class WS<
   private _knownSubscriptions: string | null = null;
   public async sendAuth() {
     if (!this.auth.isLoggedIn) return;
-    if (this._knownAuthToken !== this.auth.token) {
+    if (this._knownAuthToken !== this.auth.accessTokenString) {
       this.send("auth", true, {
-        auth: this.auth.token,
+        auth: this.auth.accessTokenString,
       });
-      this._knownAuthToken = this.auth.token;
+      this._knownAuthToken = this.auth.accessTokenString;
     }
     if (
       this._knownClientId !== this.auth.clientId ||
@@ -83,7 +83,7 @@ export class WS<
           subscribe: this.subscriptions,
         },
         {
-          auth: this.auth.isLoggedIn ? this.auth.token : undefined,
+          auth: this.auth.isLoggedIn ? this.auth.accessTokenString : undefined,
         }
       );
       (this._knownClientId = this.auth.clientId),
@@ -111,7 +111,7 @@ export class WS<
         //session: Vue.prototype.$_boot
       },
       {
-        auth: this.auth.isLoggedIn ? this.auth.token : undefined,
+        auth: this.auth.isLoggedIn ? this.auth.accessTokenString : undefined,
       }
     );
     this.sendAuth();
