@@ -108,24 +108,44 @@ export class Plugin<
     return appConfig.config.serviceMapping[this._serviceName].globals
       .subscriptions;
   }
-  public async getUIComponent(uiComponent: string): Promise<{content: string, hash: string}> {
+  public async getUIComponent(
+    uiComponent: string
+  ): Promise<{ content: string; hash: string }> {
     let appConfig = await this.whoAmI.getApp();
     const resq = await (
       await Request.getAxios(this._serviceName)
-    ).get(`/bpui/${appConfig.config.appType}/${uiComponent}.vue`);
+    ).get(`/bpui/views/${appConfig.config.appType}/${uiComponent}.vue`);
     return {
       content: resq.data,
-      hash: resq.headers['ETag']?.toString() || '-'
+      hash: resq.headers["ETag"]?.toString() || "-",
     };
   }
-  public async getUIComponentAssetURL(assetPath: string): Promise<string> {
+  public async getUIElement(
+    elementOrAssetPath: string
+  ): Promise<{ content: string; hash: string; type: string; url: string }> {
+    //let appConfig = await this.whoAmI.getApp();
+    const resq = await (
+      await Request.getAxios(this._serviceName)
+    ).get(`/bpui/${elementOrAssetPath}`);
+    return {
+      content: resq.data,
+      url: resq.request!.responseURL,
+      type:
+        resq.headers["content-type"]?.toString() || "application/javascript",
+      hash: resq.headers["ETag"]?.toString() || "-",
+    };
+  }
+  public async getUIBaseUrl(): Promise<string> {
+    return `${await Request.getAxiosBaseURL(this._serviceName)}/bpui`;
+  }
+  /*public async getUIComponentAssetURL(assetPath: string): Promise<string> {
     //if (assetPath.indexOf('@/') !== 0) return assetPath;    
     return `${await Request.getAxiosBaseURL(this._serviceName)}/bpui/${assetPath}`
   }
   public async getUIComponentLibURL(assetPath: string): Promise<string> {
     //if (assetPath.indexOf('@/') !== 0) return assetPath;    
     return `${await Request.getAxiosBaseURL(this._serviceName)}/bpui/lib/${assetPath.split('/bpui/lib/')[1]}`
-  }
+  }*/
   /*public async window(): Promise<void> {
 
   }*/
