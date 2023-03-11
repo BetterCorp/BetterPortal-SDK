@@ -93,6 +93,7 @@ export interface OAuthAccessToken {
 }
 
 export interface OAuthRefreshToken {
+  expMS: number;
   client_id: string;
   access_token_id: string;
   refresh_token_id: string;
@@ -127,8 +128,11 @@ export class Auth<
   public async window() {
     const self = this;
     this.timer = setInterval(async () => {
-      if (self.isLoggedIn) await self.refresh();
+      console.log("refresh run");
+      //if (self.isLoggedIn)
+      await self.refresh();
     }, 5 * 60 * 1000);
+    console.log("refresh run");
     await self.refresh();
   }
   /*get client(): Client | null {
@@ -186,9 +190,16 @@ export class Auth<
       client_id: appConfig.appId,
       token_endpoint_auth_method: "none",
     };
-    if (!Tools.isNullOrUndefined(this.refreshTokenString))
+    if (
+      !Tools.isNullOrUndefined(this.accessTokenString) &&
+      !Tools.isNullOrUndefined(this.refreshTokenString)
+    )
       console.warn(
-        await oauth.revocationRequest(procIss, client, this.refreshTokenString)
+        await oauth.revocationRequest(procIss, client, this.accessTokenString, {
+          additionalParameters: new URLSearchParams(
+            `refresh_token=${encodeURIComponent(this.refreshTokenString)}`
+          ),
+        })
       );
     /*if (!Tools.isNullOrUndefined(this.accessTokenString))
       console.warn(
@@ -409,7 +420,9 @@ export class Auth<
     );
     if (!Tools.isNullOrUndefined(result.refresh_token)) {
       this.storage.set("oauth_refresh_token", result.refresh_token);
-      this.storage.set("refresh_token", this.parseJwt(result.refresh_token));
+      let rjwt = this.parseJwt(result.refresh_token);
+      rjwt.expMS = rjwt.expire_time * 1000;
+      this.storage.set("refresh_token", rjwt);
     }
     if (!Tools.isNullOrUndefined(result.id_token)) {
       this.storage.set("oauth_id_token", result.id_token);
@@ -481,10 +494,17 @@ export class Auth<
     try {
       if (!this.isLoggedIn) return;
       if (this.accessToken === null) return;
+      if (this.refreshToken === null) return;
       if (this.accessTokenString === null) return;
       if (this.refreshTokenString === null) return;
-      let nowRF = new Date().getTime();
-      if (this.accessToken.expMS - 5 * 60 * 1000 > nowRF) return;
+      let nowRF = new Date().getTime() + 5 * 60 * 1000;
+      if (this.accessToken.expMS > nowRF && this.refreshToken.expMS > nowRF)
+        return console.log(
+          ` - too early to refresh (accessToken:${(this.accessToken.expMS-nowRF)/1000}s) (refreshToken:${(this.refreshToken.expMS-nowRF)/1000}s)`
+        );
+      console.log(
+        ` - refresh token (accessToken:${(this.accessToken.expMS-nowRF)/1000}s) (refreshToken:${(this.refreshToken.expMS-nowRF)/1000}s)`
+      );
       const authURL = await Request.getAxiosBaseURL("auth");
       console.log("auth too: " + authURL);
       const issuer = new URL(authURL);
@@ -530,7 +550,7 @@ export class Auth<
       this.logout();*/
     } catch (exc) {
       console.error(exc);
-      this.logout();
+      await this.login();
     }
   }
 
