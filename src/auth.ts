@@ -503,7 +503,7 @@ export class Auth<
       if (this.accessTokenString === null) return;
       if (this.refreshTokenString === null) return;
       let now = new Date().getTime();
-      if (this.accessToken.expMS > now || this.refreshToken.expMS > now) {
+      if (this.accessToken.expMS <= now || this.refreshToken.expMS <= now) {
         console.warn(
           ` - tokens have expired, lets just cleanup (accessToken:${
             (this.accessToken.expMS - now) / 1000
