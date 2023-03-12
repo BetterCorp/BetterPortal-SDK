@@ -170,7 +170,10 @@ export class Auth<
   get isLoggedIn(): boolean {
     return this.accessTokenString !== null;
   }
-  public async logout(): Promise<void> {
+  public async logout(
+    revokeTokens: boolean = true,
+    logoutRedirect: boolean = true
+  ): Promise<void> {
     if (window.bsb.betterportal !== undefined) {
       window.bsb.betterportal.events.emit("_auth", null);
       window.bsb.betterportal.events.emit("_client", null);
@@ -191,6 +194,7 @@ export class Auth<
       token_endpoint_auth_method: "none",
     };
     if (
+      revokeTokens &&
       !Tools.isNullOrUndefined(this.accessTokenString) &&
       !Tools.isNullOrUndefined(this.refreshTokenString)
     )
@@ -216,11 +220,12 @@ export class Auth<
     this.storage.delete("refresh_token");
     this.storage.delete("access_token");
     this.storage.delete("id_token");
-    window.location.href = `${
-      procIss.authorization_endpoint
-    }?action=logout&client_id=${
-      appConfig.appId
-    }&redirect_uri=${encodeURIComponent(window.location.href)}`;
+    if (logoutRedirect)
+      window.location.href = `${
+        procIss.authorization_endpoint
+      }?action=logout&client_id=${
+        appConfig.appId
+      }&redirect_uri=${encodeURIComponent(window.location.href)}`;
     //oauth.revocationRequest
   }
   /*public selectClient(clientId: string): boolean {
@@ -497,13 +502,28 @@ export class Auth<
       if (this.refreshToken === null) return;
       if (this.accessTokenString === null) return;
       if (this.refreshTokenString === null) return;
-      let nowRF = new Date().getTime() + 5 * 60 * 1000;
+      let now = new Date().getTime();
+      if (this.accessToken.expMS > now || this.refreshToken.expMS > now) {
+        console.warn(
+          ` - tokens have expired, lets just cleanup (accessToken:${
+            (this.accessToken.expMS - now) / 1000
+          }s) (refreshToken:${(this.refreshToken.expMS - now) / 1000}s)`
+        );
+        await this.logout(false, false);
+        window.location.reload();
+        return;
+      }
+      let nowRF = now + 5 * 60 * 1000;
       if (this.accessToken.expMS > nowRF && this.refreshToken.expMS > nowRF)
         return console.log(
-          ` - too early to refresh (accessToken:${(this.accessToken.expMS-nowRF)/1000}s) (refreshToken:${(this.refreshToken.expMS-nowRF)/1000}s)`
+          ` - too early to refresh (accessToken:${
+            (this.accessToken.expMS - nowRF) / 1000
+          }s) (refreshToken:${(this.refreshToken.expMS - nowRF) / 1000}s)`
         );
       console.log(
-        ` - refresh token (accessToken:${(this.accessToken.expMS-nowRF)/1000}s) (refreshToken:${(this.refreshToken.expMS-nowRF)/1000}s)`
+        ` - refresh token (accessToken:${
+          (this.accessToken.expMS - nowRF) / 1000
+        }s) (refreshToken:${(this.refreshToken.expMS - nowRF) / 1000}s)`
       );
       const authURL = await Request.getAxiosBaseURL("auth");
       console.log("auth too: " + authURL);
