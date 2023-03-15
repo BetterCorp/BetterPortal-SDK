@@ -98,6 +98,16 @@ export class Storage<T = any> {
     if (this.pluginKey === undefined) return key;
     return `${this.pluginKey}-${key}`;
   }
+  public has(key: string): boolean {
+    if (this.canLocalKey(key)) {
+      if (window.bsb.storage[this.pluginKey || "-"] === undefined) return false;
+      if (window.bsb.storage[this.pluginKey || "-"] === null) return false;
+      if (window.bsb.storage[this.pluginKey || "-"][key] === undefined) return false;
+    }
+    let data = window.localStorage.getItem(this.getKey(key));
+    if (typeof data !== "string") return false;
+    return true;
+  }
   public get<Data = T>(key: string): null | Data {
     if (this.canLocalKey(key)) {
       window.bsb.storage[this.pluginKey || "-"] =

@@ -34,11 +34,11 @@ export function defaultAppFeatures(
   config: Config,
   features: AppFeatures
 ): { config: Config; features: AppFeatures } {
-  features.title = getValueOrDefault("BetterPortal", features.title);
-  features.logo = getValueOrDefault(
+  config.title = getValueOrDefault("BetterPortal", config.title);
+  /*features.logo = getValueOrDefault(
     "https://content.betterweb.co.za/bettercorp/logos/2022/BetterPortal.png",
     features.logo
-  );
+  );*/
   features.showLogin = getValueOrDefault(true, features.showLogin);
   features.showChangelog = getValueOrDefault(true, features.showChangelog);
   features.menuType = getValueOrDefault("small-top", features.menuType);

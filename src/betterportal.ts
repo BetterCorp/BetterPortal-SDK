@@ -48,7 +48,7 @@ export class BetterPortal<
         window.bsb.betterportal.events = mitt();
         
         console.log("init as: ", whoAmIHost);
-        await self.whoami.getApp(defaultParser, whoAmIHost, hardcodedAppConfig);
+        await self.whoami.window(defaultParser, whoAmIHost);
         console.log("init as2: ", whoAmIHost);
         await self.auth.window();
         self.ws

@@ -13,8 +13,40 @@ export class WhoAmI<
   Definition extends WhoAmIDefinition<Features> = WhoAmIDefinition<Features>
 > {
   private storage: Storage;
+  private timer: NodeJS.Timer | null = null;
   constructor(myHost?: string) {
     this.storage = new Storage("whoami", ["host"]);
+  }
+  public dispose() {
+    if (this.timer !== null) clearInterval(this.timer);
+  }
+  public async window(
+    defaultParser?: {
+      (config: Config, features: Features): {
+        config: Config;
+        features: Features;
+      };
+    },
+    whoAmIHost?: string
+  ) {
+    const self = this;
+    this.timer = setInterval(async () => {
+      console.log("refresh app");
+      await self.refresh(defaultParser, whoAmIHost);
+    }, 30 * 60 * 1000);
+    console.log("refresh app");
+    await self.refresh(defaultParser, whoAmIHost);
+  }
+  private async refresh(
+    defaultParser?: {
+      (config: Config, features: Features): {
+        config: Config;
+        features: Features;
+      };
+    },
+    whoAmIHost?: string
+  ) {
+    await this.getApp(defaultParser, whoAmIHost);
   }
   async getApp(
     defaultParser?: {
@@ -28,6 +60,9 @@ export class WhoAmI<
   ): Promise<Definition> {
     if (!Tools.isNullOrUndefined(whoAmIHost)) {
       this.storage.set('host', whoAmIHost);
+    }
+    if (this.storage.has('config')) {
+      return this.storage.get<Definition>('config')!;
     }
     if (hardcodedAppConfig !== undefined && hardcodedAppConfig !== null) {
       /*this.storage.set("whoami", "config", {
