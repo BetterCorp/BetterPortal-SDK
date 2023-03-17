@@ -29,6 +29,7 @@ export class BetterPortal<
     this.plugins = new Plugins();
   }
   public window(
+    appMode: "production" | "development" | "capacitor",
     defaultParser?: {
       (config: Config, features: Features): {
         config: Config;
@@ -41,23 +42,24 @@ export class BetterPortal<
     const self = this;
     return new Promise(async (r, er) => {
       try {
-        window.bsb = window.bsb || {};
-        window.bsb.storage = window.bsb.storage || {};
-        window.bsb.ws = window.bsb.ws || {};
-        window.bsb.betterportal = window.bsb.betterportal || {};
+        window.bsb = window.bsb ?? {};
+        window.bsb.storage = window.bsb.storage ?? {};
+        window.bsb.ws = window.bsb.ws ?? {};
+        window.bsb.betterportal = window.bsb.betterportal ?? {};
+        window.bsb.betterportal.mode = appMode;
         window.bsb.betterportal.events = mitt();
         
         console.log("init as: ", whoAmIHost);
-        await self.whoami.window(defaultParser, whoAmIHost);
+        await self.whoami.window(defaultParser, whoAmIHost, hardcodedAppConfig);
         console.log("init as2: ", whoAmIHost);
         await self.auth.window();
         self.ws
           .connect()
           .then(() => {
-            window.bsb.betterportal.ws = window.bsb.betterportal.ws || {};
+            window.bsb.betterportal.ws = window.bsb.betterportal.ws ?? {};
             window.bsb.betterportal.ws.ping = () => self.ws.ping();
             window.bsb.betterportal.ws.subscriptions =
-              window.bsb.betterportal.ws.subscriptions || {};
+              window.bsb.betterportal.ws.subscriptions ?? {};
             window.bsb.betterportal.ws.subscriptions.add = (
               subscriptions: Array<string>
             ) => {

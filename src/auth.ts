@@ -7,6 +7,7 @@ import { WhoAmI, type WhoAmIDefinition } from "./whoami";
 import * as oauth from "oauth4webapi";
 import { Tools } from "@bettercorp/tools";
 import { IDictionary } from "@bettercorp/tools/lib/Interfaces";
+import { Capacitor } from "./capacitor";
 declare let window: BetterPortalWindow;
 
 export interface AuthToken {
@@ -170,6 +171,12 @@ export class Auth<
   get isLoggedIn(): boolean {
     return this.accessTokenString !== null;
   }
+  private async getOAuthHeaders(): Promise<Headers> {
+    let headers = new Headers();
+    const appConfig = await new WhoAmI<Features, Definition>().getApp();
+    headers.append("referer", appConfig.config.hostname);
+    return headers;
+  }
   public async logout(
     revokeTokens: boolean = true,
     logoutRedirect: boolean = true
@@ -184,6 +191,7 @@ export class Auth<
     console.log("auth issx: ", issuer);
     const discovIss = await oauth.discoveryRequest(issuer, {
       algorithm: "oauth2",
+      headers: await this.getOAuthHeaders(),
     });
     console.log("auth oauth: ", issuer);
     const procIss = await oauth.processDiscoveryResponse(issuer, discovIss);
@@ -203,6 +211,7 @@ export class Auth<
           additionalParameters: new URLSearchParams(
             `refresh_token=${encodeURIComponent(this.refreshTokenString)}`
           ),
+          headers: await this.getOAuthHeaders(),
         })
       );
     /*if (!Tools.isNullOrUndefined(this.accessTokenString))
@@ -269,7 +278,7 @@ export class Auth<
         signal: options?.signal ? signal(options.signal) : null,
     }).then(processDpopNonce);
 }*/
-  public async login(): Promise<void> {
+  public async login(): Promise<boolean> {
     //const self = this;
     const authURL = await Request.getAxiosBaseURL("auth");
     console.log("auth too: " + authURL);
@@ -277,6 +286,7 @@ export class Auth<
     console.log("auth issx: ", issuer);
     const discovIss = await oauth.discoveryRequest(issuer, {
       algorithm: "oauth2",
+      headers: await this.getOAuthHeaders(),
     });
     console.log("auth oauth: ", issuer);
     const procIss = await oauth.processDiscoveryResponse(issuer, discovIss);
@@ -285,10 +295,11 @@ export class Auth<
     const appConfig = await new WhoAmI<Features, Definition>().getApp();
 
     console.log("auth as:" + authURL);
-    const client: oauth.Client = {
-      client_id: appConfig.appId,
-      token_endpoint_auth_method: "none",
-    };
+    if (procIss.code_challenge_methods_supported?.includes("S256") !== true) {
+      // This example assumes S256 PKCE support is signalled
+      // If it isn't supported, random `state` must be used for CSRF protection.
+      throw new Error("S256 not supposed");
+    }
 
     const sParams = new URLSearchParams(window.location.search);
     const params = new Proxy(sParams, {
@@ -297,16 +308,57 @@ export class Auth<
 
     const redirect_uri =
       params.redirectFrom || window.location.origin + window.location.pathname;
-
     console.log("redirect from:" + redirect_uri);
-    if (procIss.code_challenge_methods_supported?.includes("S256") !== true) {
-      // This example assumes S256 PKCE support is signalled
-      // If it isn't supported, random `state` must be used for CSRF protection.
-      throw new Error("S256 not supposed");
+
+    if (window.bsb.betterportal.mode === "capacitor") {
+      console.log("redirect from: AUTH POPUP");
+      let resp = await Capacitor.triggerOAuthMobile({
+        logsEnabled: true,
+        appId: appConfig.appId,
+        pkceEnabled: true,
+        //pkceDisable: false,
+        authorizationBaseUrl: procIss.authorization_endpoint,
+        accessTokenEndpoint: procIss.token_endpoint,
+        scope: "openid profile",
+        //resourceUrl: procIss.userinfo_endpoint,
+        responseType: "code",
+        redirectUrl: "cloud.betterportal.mobile:/",
+        // web: {
+        //   pkceEnabled: true,
+        //   responseType: "code",
+        //   redirectUrl: redirect_uri,
+        //   windowOptions: "height=600,left=0,top=0"
+        // },
+        android: {
+          //appId: appConfig.appId,
+          //pkceEnabled: true,
+          //responseType: "code",
+          //redirectUrl: "cloud.betterportal.mobile:/",
+        },
+        ios: {
+          //appId: appConfig.appId,
+          //pkceEnabled: true,
+          //responseType: "code",
+          //redirectUrl: "cloud.betterportal.mobile:/",
+        },
+      });
+      console.log(resp);
+      await this.parseTokenResult(
+        resp.access_token_response ?? { error: resp }
+      );
+      return true;
     }
+
+    const client: oauth.Client = {
+      client_id: appConfig.appId,
+      token_endpoint_auth_method: "none",
+    };
+
     console.log("code_verifierx");
     const code_verifier = oauth.generateRandomCodeVerifier();
+    const state = oauth.generateRandomState();
     this.storage.set("oauth_code_verifierx", code_verifier);
+    this.storage.set("oauth_code_statex", state);
     //console.log('code_verifier',code_verifier)
     const code_challenge = await oauth.calculatePKCECodeChallenge(
       code_verifier
@@ -315,7 +367,6 @@ export class Auth<
 
     {
       // redirect user to as.authorization_endpoint
-
       console.log("start auth to: " + procIss.authorization_endpoint!);
       const authorizationUrl = new URL(procIss.authorization_endpoint!);
       authorizationUrl.searchParams.set("client_id", client.client_id);
@@ -325,6 +376,7 @@ export class Auth<
         code_challenge_method
       );
       authorizationUrl.searchParams.set("redirect_uri", redirect_uri);
+      authorizationUrl.searchParams.set("state", state);
       authorizationUrl.searchParams.set("response_type", "code");
       authorizationUrl.searchParams.set("scope", "openid profile");
       let endAuthUrl = authorizationUrl.toString();
@@ -340,6 +392,7 @@ export class Auth<
       }
       window.location.href = endAuthUrl;
     }
+    return false; // probs will never be reached, but just in case
   }
   public async loginFinalize() {
     const authURL = await Request.getAxiosBaseURL("auth");
@@ -348,6 +401,7 @@ export class Auth<
     console.log("auth issx: ", issuer);
     const discovIss = await oauth.discoveryRequest(issuer, {
       algorithm: "oauth2",
+      headers: await this.getOAuthHeaders(),
     });
     console.log("auth oauth: ", issuer);
     const procIss = await oauth.processDiscoveryResponse(issuer, discovIss);
@@ -362,7 +416,7 @@ export class Auth<
       procIss,
       client,
       currentUrl,
-      oauth.expectNoState
+      this.storage.get("oauth_code_statex") || "XX"
     );
     if (oauth.isOAuth2Error(parameters)) {
       console.log("error", parameters);
@@ -380,7 +434,10 @@ export class Auth<
       client,
       parameters,
       redirect_uri,
-      this.storage.get("oauth_code_verifierx") || "XX"
+      this.storage.get("oauth_code_verifierx") || "XX",
+      {
+        headers: await this.getOAuthHeaders(),
+      }
     );
 
     let challenges: oauth.WWWAuthenticateChallenge[] | undefined;
@@ -398,6 +455,7 @@ export class Auth<
     );
 
     this.storage.delete("oauth_code_verifierx");
+    this.storage.delete("oauth_code_statex");
     this.parseTokenResult(result);
   }
   private parseTokenResult(
@@ -412,7 +470,7 @@ export class Auth<
     }
 
     console.log("result", result);
-    if (result.token_type !== "bearer")
+    if (result.token_type.toLowerCase() !== "bearer")
       throw "Unable to process authenticated token";
     this.storage.set("oauth_access_token", result.access_token);
     let jwt = this.parseJwt(result.access_token);
@@ -531,6 +589,7 @@ export class Auth<
       console.log("auth issx: ", issuer);
       const discovIss = await oauth.discoveryRequest(issuer, {
         algorithm: "oauth2",
+        headers: await this.getOAuthHeaders(),
       });
       console.log("auth oauth: ", issuer);
       const procIss = await oauth.processDiscoveryResponse(issuer, discovIss);
@@ -543,7 +602,10 @@ export class Auth<
       let refreshReq = await oauth.refreshTokenGrantRequest(
         procIss,
         client,
-        this.refreshTokenString
+        this.refreshTokenString,
+        {
+          headers: await this.getOAuthHeaders(),
+        }
       );
       let refreshResp = await oauth.processRefreshTokenResponse(
         procIss,

@@ -2,6 +2,7 @@ import type { IDictionary } from "@bettercorp/tools/lib/Interfaces";
 import { Dexie } from "dexie";
 import type { Table } from "dexie";
 import type { BetterPortalWindow } from "./globals";
+import { Tools } from '@bettercorp/tools';
 declare let window: BetterPortalWindow;
 
 export interface DBTable extends Table {
@@ -100,12 +101,11 @@ export class Storage<T = any> {
   }
   public has(key: string): boolean {
     if (this.canLocalKey(key)) {
-      if (window.bsb.storage[this.pluginKey || "-"] === undefined) return false;
-      if (window.bsb.storage[this.pluginKey || "-"] === null) return false;
-      if (window.bsb.storage[this.pluginKey || "-"][key] === undefined) return false;
+      if (Tools.isNullOrUndefined(window.bsb.storage[this.pluginKey || "-"])) return false;
+      if (Tools.isNullOrUndefined(window.bsb.storage[this.pluginKey || "-"][key])) return false;
     }
     let data = window.localStorage.getItem(this.getKey(key));
-    if (typeof data !== "string") return false;
+    if (!Tools.isString(data)) return false;
     return true;
   }
   public get<Data = T>(key: string): null | Data {

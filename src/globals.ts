@@ -14,6 +14,7 @@ export interface BPW_BSB_BP_WHOAMI {
   get: { async<T extends WhoAmIDefinition = WhoAmIDefinition>(): Promise<T> };
 }
 export interface BPW_BSB_BP {
+  mode: "production" | "development" | "capacitor";
   ws: BPW_BSB_BP_WS;
   whoami: BPW_BSB_BP_WHOAMI;
   events: Emitter<BSPEvents>;
@@ -24,9 +25,9 @@ export interface BPW_BSB {
   ws: {
     sessionId: string | null;
     connected: boolean;
-  },
-  storage: any
+  };
+  storage: any;
 }
 export interface BetterPortalWindow extends Window {
-  bsb: BPW_BSB
+  bsb: BPW_BSB;
 }

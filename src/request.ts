@@ -34,7 +34,6 @@ export class Request {
   >(service?: string, specificBaseHost?: string) {
     let axiosConfig: CreateAxiosDefaults<any> = {
       headers: {},
-      withCredentials: true
     };
     axiosConfig.baseURL = specificBaseHost || "httpx://never.never";
 
@@ -58,7 +57,9 @@ export class Request {
 
     const auth = new Auth();
     if (auth.isLoggedIn) {
-      (axiosConfig as any).headers["authorization"] = "Bearer " + auth.accessTokenString;
+      (axiosConfig as any).withCredentials = true;
+      (axiosConfig as any).headers["authorization"] =
+        "Bearer " + auth.accessTokenString;
     }
     if (
       service !== undefined &&

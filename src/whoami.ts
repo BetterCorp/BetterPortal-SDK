@@ -15,7 +15,7 @@ export class WhoAmI<
   private storage: Storage;
   private timer: NodeJS.Timer | null = null;
   constructor(myHost?: string) {
-    this.storage = new Storage("whoami", ["host"]);
+    this.storage = new Storage("whoami");
   }
   public dispose() {
     if (this.timer !== null) clearInterval(this.timer);
@@ -27,15 +27,17 @@ export class WhoAmI<
         features: Features;
       };
     },
-    whoAmIHost?: string
+    whoAmIHost?: string,
+    hardcodedAppConfig?: Definition
   ) {
     const self = this;
     this.timer = setInterval(async () => {
       console.log("refresh app");
-      await self.refresh(defaultParser, whoAmIHost);
+      await self.refresh(defaultParser);
     }, 30 * 60 * 1000);
     console.log("refresh app");
-    await self.refresh(defaultParser, whoAmIHost);
+    if (Tools.isNullOrUndefined(hardcodedAppConfig)) await self.refresh(defaultParser, whoAmIHost);
+    else await self.getApp(defaultParser, whoAmIHost, hardcodedAppConfig);
   }
   private async refresh(
     defaultParser?: {
@@ -46,7 +48,7 @@ export class WhoAmI<
     },
     whoAmIHost?: string
   ) {
-    await this.getApp(defaultParser, whoAmIHost);
+    await this._getApp(defaultParser, whoAmIHost, undefined, true);
   }
   async getApp(
     defaultParser?: {
@@ -58,24 +60,41 @@ export class WhoAmI<
     whoAmIHost?: string,
     hardcodedAppConfig?: Definition
   ): Promise<Definition> {
-    if (!Tools.isNullOrUndefined(whoAmIHost)) {
-      this.storage.set('host', whoAmIHost);
-    }
-    if (this.storage.has('config')) {
-      return this.storage.get<Definition>('config')!;
-    }
-    if (hardcodedAppConfig !== undefined && hardcodedAppConfig !== null) {
+    return await this._getApp(defaultParser, whoAmIHost, hardcodedAppConfig);
+  }
+  private async _getApp(
+    defaultParser?: {
+      (config: Config, features: Features): {
+        config: Config;
+        features: Features;
+      };
+    },
+    whoAmIHost?: string,
+    hardcodedAppConfig?: Definition,
+    force: boolean = false
+  ): Promise<Definition> {
+    if (Tools.isString(whoAmIHost)) {
+      this.storage.set("host", whoAmIHost);
+    } 
+    
+    if (
+      !force &&
+      !this.storage.has("config") &&
+      !Tools.isNullOrUndefined(hardcodedAppConfig)
+    ) {
       /*this.storage.set("whoami", "config", {
         data: hardcodedAppConfig,
         time: -1,
       });*/
       return hardcodedAppConfig;
     }
-    
-    return await this.storage.cachedREGet<Definition>("config", async () => {
-      try {
+
+    const self = this;
+    return await this.storage.cachedREGet<Definition>(
+      "config",
+      async () => {
         let resp = await (
-          await Request.getAxios("whoami", whoAmIHost)
+          await Request.getAxios("whoami", self.storage.get("host") || undefined)
         ).get<Definition>("/app");
         if (resp.status !== 202) throw "Invalid APP";
         if (defaultParser !== undefined) {
@@ -93,10 +112,9 @@ export class WhoAmI<
           };
         }
         return resp.data;
-      } catch (exc: any) {
-        throw exc;
-      }
-    }, 60000);
+      },
+      60000
+    );
   }
 }
 
