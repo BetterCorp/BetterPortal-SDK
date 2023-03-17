@@ -36,7 +36,8 @@ export class WhoAmI<
       await self.refresh(defaultParser);
     }, 30 * 60 * 1000);
     console.log("refresh app");
-    if (Tools.isNullOrUndefined(hardcodedAppConfig)) await self.refresh(defaultParser, whoAmIHost);
+    if (Tools.isNullOrUndefined(hardcodedAppConfig))
+      await self.refresh(defaultParser, whoAmIHost);
     else await self.getApp(defaultParser, whoAmIHost, hardcodedAppConfig);
   }
   private async refresh(
@@ -75,8 +76,8 @@ export class WhoAmI<
   ): Promise<Definition> {
     if (Tools.isString(whoAmIHost)) {
       this.storage.set("host", whoAmIHost);
-    } 
-    
+    }
+
     if (
       !force &&
       !this.storage.has("config") &&
@@ -94,7 +95,10 @@ export class WhoAmI<
       "config",
       async () => {
         let resp = await (
-          await Request.getAxios("whoami", self.storage.get("host") || undefined)
+          await Request.getAxios(
+            "whoami",
+            self.storage.get("host") || undefined
+          )
         ).get<Definition>("/app");
         if (resp.status !== 202) throw "Invalid APP";
         if (defaultParser !== undefined) {
@@ -165,6 +169,10 @@ export interface ServerConfig {
 
 export enum ServiceConfigGlobalComponentPlacement {
   app = "app",
+  header = "header",
+  footer = "footer",
+  menu = "menu",
+  content = "content",
 }
 export interface ServiceConfigGlobalComponent {
   placement: ServiceConfigGlobalComponentPlacement;
