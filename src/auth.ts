@@ -278,7 +278,19 @@ export class Auth<
         signal: options?.signal ? signal(options.signal) : null,
     }).then(processDpopNonce);
 }*/
+  public async doAction(
+    action: string,
+    meta?: Array<Record<string, string | number>>
+  ): Promise<boolean> {
+    return await this.oauthRedirect(action, meta);
+  }
   public async login(): Promise<boolean> {
+    return await this.oauthRedirect();
+  }
+  private async oauthRedirect(
+    action?: string,
+    meta?: Array<Record<string, string | number>>
+  ): Promise<boolean> {
     //const self = this;
     const authURL = await Request.getAxiosBaseURL("auth");
     console.log("auth too: " + authURL);
@@ -312,7 +324,20 @@ export class Auth<
 
     if (window.bsb.betterportal.mode === "capacitor") {
       console.log("redirect from: AUTH POPUP");
+      let additionalParameters: {
+        [key: string]: string;
+      } = {};
+      if (!Tools.isNullOrUndefined(action)) {
+        additionalParameters["action"] = action;
+        if (!Tools.isNullOrUndefined(meta)) {
+          additionalParameters["actionmeta"] = Buffer.from(
+            JSON.stringify(meta),
+            "utf-8"
+          ).toString("base64");
+        }
+      }
       let resp = await Capacitor.triggerOAuthMobile({
+        additionalParameters: additionalParameters,
         logsEnabled: true,
         appId: appConfig.appId,
         pkceEnabled: true,
@@ -379,6 +404,15 @@ export class Auth<
       authorizationUrl.searchParams.set("state", state);
       authorizationUrl.searchParams.set("response_type", "code");
       authorizationUrl.searchParams.set("scope", "openid profile");
+      if (!Tools.isNullOrUndefined(action)) {
+        authorizationUrl.searchParams.set("action", action);
+        if (!Tools.isNullOrUndefined(meta)) {
+          authorizationUrl.searchParams.set(
+            "actionmeta",
+            Buffer.from(JSON.stringify(meta), "utf-8").toString("base64")
+          );
+        }
+      }
       let endAuthUrl = authorizationUrl.toString();
       console.log("Auth redirect auth to: " + endAuthUrl);
       for (let objKeyA of sParams) {
