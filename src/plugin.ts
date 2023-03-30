@@ -79,6 +79,9 @@ export class Plugin<
     this.storage = new Storage(serviceName);
     this.whoAmI = new WhoAmI();
   }
+  public get name() {
+    return this._serviceName;
+  }
   public async isAvailable(): Promise<boolean> {
     let appConfig = await this.whoAmI.getApp();
     if (appConfig.config.serviceMapping === undefined) return false;
