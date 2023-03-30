@@ -121,7 +121,11 @@ export class Plugin<
     const resq = await (
       await Request.getAxios(this._serviceName)
     ).get(`/bp/capabilities`);
-    return resq.data;
+    return resq.data
+      .flat()
+      .filter(
+        (value: any, index: any, self: any) => self.indexOf(value) === index
+      );
   }
   public async getCapability<T = any>(
     capability: BetterPortalCapabilityConfigurable,
