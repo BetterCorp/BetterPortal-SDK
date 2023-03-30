@@ -31,3 +31,19 @@ export interface BPW_BSB {
 export interface BetterPortalWindow extends Window {
   bsb: BPW_BSB;
 }
+export enum BetterPortalCapabilityConfigurable {
+  search = "search",
+  searchCache = "searchCache",
+  searchAuthed = "searchAuthed",
+  searchCacheAuthed = "searchCacheAuthed",
+  changelog = "changelog",
+  settings = "settings",
+  settingsAuthed = "settingsAuthed",
+}
+export enum BetterPortalCapabilityInternal {
+  uiServices = "uiServices",
+  permissions = "permissions",
+}
+export type BetterPortalCapability =
+  | BetterPortalCapabilityInternal
+  | BetterPortalCapabilityConfigurable;

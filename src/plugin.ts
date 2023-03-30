@@ -2,8 +2,12 @@ import type { ServiceRoute, WhoAmIDefinition } from "./whoami";
 import { WhoAmI } from "./whoami";
 import { Storage } from "./storage";
 import { Request } from "./request";
-import type { BetterPortalWindow } from "./globals";
+import type {
+  BetterPortalCapabilityConfigurable,
+  BetterPortalWindow,
+} from "./globals";
 import type { IDictionary } from "@bettercorp/tools/lib/Interfaces";
+import { Tools } from "@bettercorp/tools";
 declare let window: BetterPortalWindow;
 
 export interface ServiceRouteExpanded extends ServiceRoute {
@@ -107,6 +111,29 @@ export class Plugin<
 
     return appConfig.config.serviceMapping[this._serviceName].globals
       .subscriptions;
+  }
+  public async getCapabilities(): Promise<
+    Array<BetterPortalCapabilityConfigurable>
+  > {
+    const resq = await (
+      await Request.getAxios(this._serviceName)
+    ).get(`/bp/capabilities`);
+    return resq.data;
+  }
+  public async getCapability<T = any>(
+    capability: BetterPortalCapabilityConfigurable,
+    param?: string,
+    optionalParams?: Record<string, string>
+  ): Promise<Array<T>> {
+    const resq = await (
+      await Request.getAxios(this._serviceName)
+    ).get(
+      `/bp/capabilities/${capability}${
+        Tools.isNullOrUndefined(param) ? "" : `/${param}`
+      }`,
+      { params: optionalParams }
+    );
+    return resq.data;
   }
   public async getUIComponent(
     uiComponent: string
