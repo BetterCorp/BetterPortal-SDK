@@ -78,7 +78,7 @@ export class Request {
 
     const auth = new Auth(logger);
     if (auth.isLoggedIn) {
-      axiosConfig.headers["authorization"] =
+      (axiosConfig as any).headers["authorization"] =
         "Bearer " + auth.accessTokenString;
     }
     if (
