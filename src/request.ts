@@ -51,6 +51,7 @@ export class Request {
   ) {
     let axiosConfig: CreateAxiosDefaults<any> = {
       headers: {},
+      withCredentials: true,
     };
     axiosConfig.baseURL = specificBaseHost || "httpx://never.never";
 
@@ -77,8 +78,7 @@ export class Request {
 
     const auth = new Auth(logger);
     if (auth.isLoggedIn) {
-      (axiosConfig as any).withCredentials = true;
-      (axiosConfig as any).headers["authorization"] =
+      axiosConfig.headers["authorization"] =
         "Bearer " + auth.accessTokenString;
     }
     if (
