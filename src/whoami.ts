@@ -2,6 +2,7 @@ import type { IDictionary } from "@bettercorp/tools/lib/Interfaces";
 import { Request } from "./request";
 import { Storage } from "./storage";
 import { Tools } from "@bettercorp/tools/lib/Tools";
+import { Logger } from "./logger";
 
 export type AxiosResponse<T = any> = {
   status: number;
@@ -12,10 +13,12 @@ export class WhoAmI<
   Features,
   Definition extends WhoAmIDefinition<Features> = WhoAmIDefinition<Features>
 > {
-  private storage: Storage;
+  private storage: Storage<Features, Definition>;
+  public logger: Logger<Features, Definition>;
   private timer: NodeJS.Timer | null = null;
-  constructor(myHost?: string) {
-    this.storage = new Storage("whoami");
+  constructor(logger: Logger<Features, Definition>, myHost?: string) {
+    this.logger = logger;
+    this.storage = new Storage(logger, "whoami");
   }
   public dispose() {
     if (this.timer !== null) clearInterval(this.timer);
@@ -32,10 +35,10 @@ export class WhoAmI<
   ) {
     const self = this;
     this.timer = setInterval(async () => {
-      console.log("refresh app");
+      self.logger.debug("refresh app");
       await self.refresh(defaultParser);
     }, 30 * 60 * 1000);
-    console.log("refresh app");
+    self.logger.debug("refresh app");
     if (Tools.isNullOrUndefined(hardcodedAppConfig))
       await self.refresh(defaultParser, whoAmIHost);
     else await self.getApp(defaultParser, whoAmIHost, hardcodedAppConfig);
@@ -96,6 +99,7 @@ export class WhoAmI<
       async () => {
         let resp = await (
           await Request.getAxios(
+            self.logger,
             "whoami",
             self.storage.get("host") || undefined
           )
@@ -142,15 +146,25 @@ export interface Company {
   name: string;
   supportEmail: string;
   supportNumber: string;
+  address: Address;
   links: Links;
   logo: string;
   logoLight: string;
+  registrationNumber: string;
+  VATNumber: string | null;
 }
 
 export interface Links {
   Website: string;
 }
 
+export interface Address {
+  address: string;
+  addressGeo: {
+    lat: number;
+    lng: number;
+  } | null;
+}
 export interface Config {
   hostname: string;
   tenantId: string;

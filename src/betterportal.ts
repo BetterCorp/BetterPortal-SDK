@@ -8,6 +8,7 @@ import mitt from "mitt";
 import type { BetterPortalWindow } from "./globals";
 import type { AxiosInstance } from "axios";
 import { Plugins } from "./plugin";
+import { Logger } from "./logger";
 declare let window: BetterPortalWindow;
 
 export class BetterPortal<
@@ -18,15 +19,17 @@ export class BetterPortal<
   public auth: Auth<Features, Definition>;
   public ws: WS<Features, Definition>;
   public plugins: Plugins<Features, Definition>;
+  public logger: Logger<Features, Definition>;
   public async request(service: string): Promise<AxiosInstance> {
-    return await Request.getAxios(service);
+    return await Request.getAxios(this.logger, service);
   }
   constructor(myHost?: string) {
-    if (myHost !== undefined) Request.setHost(myHost);
-    this.whoami = new WhoAmI(myHost);
-    this.auth = new Auth();
-    this.ws = new WS();
-    this.plugins = new Plugins();
+    this.logger = new Logger(this);
+    if (myHost !== undefined) Request.setHost(this.logger, myHost);
+    this.whoami = new WhoAmI(this.logger, myHost);
+    this.auth = new Auth(this.logger);
+    this.ws = new WS(this.logger);
+    this.plugins = new Plugins(this.logger);
   }
   public window(
     appMode: "production" | "development" | "capacitor",
@@ -46,12 +49,13 @@ export class BetterPortal<
         window.bsb.storage = window.bsb.storage ?? {};
         window.bsb.ws = window.bsb.ws ?? {};
         window.bsb.betterportal = window.bsb.betterportal ?? {};
+        self.logger.window(appMode);
         window.bsb.betterportal.mode = appMode;
         window.bsb.betterportal.events = mitt();
-        
-        console.log("init as: ", whoAmIHost);
+
+        self.logger.debug("init as: ", whoAmIHost);
         await self.whoami.window(defaultParser, whoAmIHost, hardcodedAppConfig);
-        console.log("init as2: ", whoAmIHost);
+        self.logger.debug("init as2: ", whoAmIHost);
         await self.auth.window();
         self.ws
           .connect()
@@ -71,9 +75,10 @@ export class BetterPortal<
               self.ws.removeSubscription(subscriptions);
             };
           })
-          .catch(console.error);
+          .catch(self.logger.error);
         r();
       } catch (exc) {
+        self.logger.error(exc);
         er(exc);
       }
     });

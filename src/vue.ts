@@ -2,6 +2,9 @@
 //import { App } from "vue";
 import type { Router } from "vue-router";
 import type { ServiceRouteExpanded } from "./plugin";
+import { BetterPortalWindow } from "./globals";
+import { Tools } from "@bettercorp/tools";
+declare let window: BetterPortalWindow;
 //import { ServiceRoute } from "./whoami";
 
 /*export interface VueRouterOptions {
@@ -30,7 +33,16 @@ export class Vue {
     layoutComponent: any
   ) {
     for (let route of routes) {
-      console.log("add " + route.path);
+      if (
+        !Tools.isNullOrUndefined(window.bsb) &&
+        !Tools.isNullOrUndefined(window.bsb.betterportal) &&
+        !Tools.isNullOrUndefined(window.bsb.betterportal.log)
+      ) {
+        window.bsb.betterportal.log.debug(
+          "add route:" + route.name,
+          route.path
+        );
+      }
       router.addRoute({
         path: route.path,
         name: route.name,
@@ -45,7 +57,7 @@ export class Vue {
   }
 
   /*constructor(app: App<Element>, options: VueOptions) {
-    console.log("ready setup");
+    self.logger.debug("ready setup");
     app.use(this, options);
   }
   public install(app: App<Element>, options: VueOptions) {
@@ -59,7 +71,7 @@ export class Vue {
       throw "Undefined/Null [layoutComponent] Options";
 
     for (let route of options.routes) {
-      console.log("add route:" + route.name, route.path);
+      self.logger.debug("add route:" + route.name, route.path);
       options.router.addRoute({
         path: route.path,
         name: route.name,

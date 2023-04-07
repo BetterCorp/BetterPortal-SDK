@@ -4,20 +4,33 @@ import { WhoAmI } from "./whoami";
 import type { WhoAmIDefinition } from "./whoami";
 import { Storage } from "./storage";
 import { Auth } from "./auth";
+import { Logger } from "./logger";
 
 export class Request {
-  public static setHost(myHost: string) {
-    if (myHost === "") new Storage<string>("_base").delete("host");
-    else new Storage<string>("_base").set("host", myHost);
+  public static setHost<
+    Features,
+    Definition extends WhoAmIDefinition<Features> = WhoAmIDefinition<Features>
+  >(logger: Logger<Features, Definition>, myHost: string) {
+    if (myHost === "")
+      new Storage<Features, Definition, string>(logger, "_base").delete("host");
+    else
+      new Storage<Features, Definition, string>(logger, "_base").set(
+        "host",
+        myHost
+      );
   }
   public static async getAxiosBaseURL<
     Features,
     Definition extends WhoAmIDefinition<Features> = WhoAmIDefinition<Features>
-  >(service?: string, specificBaseHost?: string) {
+  >(
+    logger: Logger<Features, Definition>,
+    service?: string,
+    specificBaseHost?: string
+  ) {
     if (service === "whoami") {
       return specificBaseHost || "https://whoami.betterportal.cloud";
     }
-    const appConfig = await new WhoAmI<Features, Definition>().getApp();
+    const appConfig = await new WhoAmI<Features, Definition>(logger).getApp();
 
     if (
       service !== undefined &&
@@ -31,13 +44,20 @@ export class Request {
   public static async getAxios<
     Features,
     Definition extends WhoAmIDefinition<Features> = WhoAmIDefinition<Features>
-  >(service?: string, specificBaseHost?: string) {
+  >(
+    logger: Logger<Features, Definition>,
+    service?: string,
+    specificBaseHost?: string
+  ) {
     let axiosConfig: CreateAxiosDefaults<any> = {
       headers: {},
     };
     axiosConfig.baseURL = specificBaseHost || "httpx://never.never";
 
-    const _host = new Storage<string>("_base").get("host");
+    const _host = new Storage<Features, Definition, string>(
+      logger,
+      "_base"
+    ).get("host");
     if (_host !== null) {
       (axiosConfig as any).headers["origin"] = _host;
       (axiosConfig as any).headers["referrer"] = _host;
@@ -46,16 +66,16 @@ export class Request {
     if (service === "whoami") {
       axiosConfig.baseURL =
         specificBaseHost ||
-        new Storage("whoami", ["host"]).get("host") ||
+        new Storage(logger, "whoami", ["host"]).get("host") ||
         "https://whoami.betterportal.cloud";
       return axios.create(axiosConfig);
     }
-    const appConfig = await new WhoAmI<Features, Definition>().getApp();
+    const appConfig = await new WhoAmI<Features, Definition>(logger).getApp();
 
     (axiosConfig as any).headers["tenant-id"] = appConfig.config.tenantId;
     (axiosConfig as any).headers["app-id"] = appConfig.appId;
 
-    const auth = new Auth();
+    const auth = new Auth(logger);
     if (auth.isLoggedIn) {
       (axiosConfig as any).withCredentials = true;
       (axiosConfig as any).headers["authorization"] =

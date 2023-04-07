@@ -2,7 +2,9 @@ import type { IDictionary } from "@bettercorp/tools/lib/Interfaces";
 import { Dexie } from "dexie";
 import type { Table } from "dexie";
 import type { BetterPortalWindow } from "./globals";
-import { Tools } from '@bettercorp/tools';
+import { Tools } from "@bettercorp/tools";
+import { Logger } from "./logger";
+import { WhoAmIDefinition } from "./whoami";
 declare let window: BetterPortalWindow;
 
 export interface DBTable extends Table {
@@ -77,7 +79,12 @@ export interface StorageBasicCached<T = any> {
 export interface StorageCached<T = any> extends StorageBasicCached<T> {
   getResets: boolean;
 }
-export class Storage<T = any> {
+export class Storage<
+  Features,
+  Definition extends WhoAmIDefinition<Features> = WhoAmIDefinition<Features>,
+  T = any
+> {
+  private logger: Logger<Features, Definition>;
   private pluginKey?: string;
   private canLocal: boolean | Array<string> = false;
   private canLocalKey(key: string): boolean {
@@ -87,7 +94,12 @@ export class Storage<T = any> {
     if (this.canLocal === true) return true;
     return this.canLocal.indexOf(key) >= 0;
   }
-  constructor(pluginKey: string, canLocal?: boolean | Array<string>) {
+  constructor(
+    logger: Logger<Features, Definition>,
+    pluginKey: string,
+    canLocal?: boolean | Array<string>
+  ) {
+    this.logger = logger;
     this.pluginKey = pluginKey;
     if (window !== undefined) {
       window.bsb = window.bsb || {};
@@ -101,8 +113,12 @@ export class Storage<T = any> {
   }
   public has(key: string): boolean {
     if (this.canLocalKey(key)) {
-      if (Tools.isNullOrUndefined(window.bsb.storage[this.pluginKey || "-"])) return false;
-      if (Tools.isNullOrUndefined(window.bsb.storage[this.pluginKey || "-"][key])) return false;
+      if (Tools.isNullOrUndefined(window.bsb.storage[this.pluginKey || "-"]))
+        return false;
+      if (
+        Tools.isNullOrUndefined(window.bsb.storage[this.pluginKey || "-"][key])
+      )
+        return false;
     }
     let data = window.localStorage.getItem(this.getKey(key));
     if (!Tools.isString(data)) return false;
@@ -197,7 +213,7 @@ export class Storage<T = any> {
                 self.set<boolean>(`_cache-${key}`, false);
               })
               .catch((xc) => {
-                console.error(xc);
+                self.logger.error(xc);
               });
           }
         }

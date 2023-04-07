@@ -1,5 +1,5 @@
 import type { ServiceRoute, WhoAmIDefinition } from "./whoami";
-import { WhoAmI } from "./whoami";
+import { AxiosResponse, WhoAmI } from "./whoami";
 import { Storage } from "./storage";
 import { Request } from "./request";
 import type {
@@ -8,6 +8,7 @@ import type {
 } from "./globals";
 import type { IDictionary } from "@bettercorp/tools/lib/Interfaces";
 import { Tools } from "@bettercorp/tools";
+import { Logger } from "./logger";
 declare let window: BetterPortalWindow;
 
 export interface ServiceRouteExpanded extends ServiceRoute {
@@ -19,8 +20,10 @@ export class Plugins<
   Definition extends WhoAmIDefinition<Features> = WhoAmIDefinition<Features>
 > {
   protected whoAmI!: WhoAmI<Features, Definition>;
-  constructor() {
-    this.whoAmI = new WhoAmI();
+  private logger: Logger<Features, Definition>;
+  constructor(logger: Logger<Features, Definition>) {
+    this.logger = logger;
+    this.whoAmI = new WhoAmI(logger);
   }
   private _activePlugins: IDictionary<Plugin<Features, Definition>> | null =
     null;
@@ -37,7 +40,7 @@ export class Plugins<
       (x) => x !== "enabled"
     );
     for (let pluginName of pluginNames) {
-      let plugin = new Plugin<Features, Definition>(pluginName);
+      let plugin = new Plugin<Features, Definition>(this.logger, pluginName);
       if (await plugin.isAvailable()) plugins[pluginName] = plugin;
     }
 
@@ -72,12 +75,14 @@ export class Plugin<
   Definition extends WhoAmIDefinition<Features> = WhoAmIDefinition<Features>
 > {
   protected _serviceName: string;
-  protected storage: Storage;
+  protected storage: Storage<Features, Definition>;
   protected whoAmI!: WhoAmI<Features, Definition>;
-  constructor(serviceName: string) {
+  private logger: Logger<Features, Definition>;
+  constructor(logger: Logger<Features, Definition>, serviceName: string) {
     this._serviceName = serviceName;
-    this.storage = new Storage(serviceName);
-    this.whoAmI = new WhoAmI();
+    this.logger = logger;
+    this.storage = new Storage(logger, serviceName);
+    this.whoAmI = new WhoAmI(logger);
   }
   public get name() {
     return this._serviceName;
@@ -119,7 +124,7 @@ export class Plugin<
     Array<BetterPortalCapabilityConfigurable>
   > {
     const resq = await (
-      await Request.getAxios(this._serviceName)
+      await Request.getAxios(this.logger, this._serviceName)
     ).get(`/bp/capabilities`);
     return resq.data
       .flat()
@@ -133,7 +138,7 @@ export class Plugin<
     optionalParams?: Record<string, string>
   ): Promise<Array<T>> {
     const resq = await (
-      await Request.getAxios(this._serviceName)
+      await Request.getAxios(this.logger, this._serviceName)
     ).get(
       `/bp/capabilities/${capability}${
         Tools.isNullOrUndefined(param) ? "" : `/${param}`
@@ -147,7 +152,7 @@ export class Plugin<
   ): Promise<{ content: string; hash: string }> {
     let appConfig = await this.whoAmI.getApp();
     const resq = await (
-      await Request.getAxios(this._serviceName)
+      await Request.getAxios(this.logger, this._serviceName)
     ).get(`/bpui/views/${appConfig.config.appType}/${uiComponent}.vue`);
     return {
       content: resq.data,
@@ -159,7 +164,7 @@ export class Plugin<
   ): Promise<{ content: string; hash: string; type: string; url: string }> {
     //let appConfig = await this.whoAmI.getApp();
     const resq = await (
-      await Request.getAxios(this._serviceName)
+      await Request.getAxios(this.logger, this._serviceName)
     ).get(`/bpui/${elementOrAssetPath}`);
     return {
       content: resq.data,
@@ -170,17 +175,135 @@ export class Plugin<
     };
   }
   public async getUIBaseUrl(): Promise<string> {
-    return `${await Request.getAxiosBaseURL(this._serviceName)}/bpui`;
+    return `${await Request.getAxiosBaseURL(
+      this.logger,
+      this._serviceName
+    )}/bpui`;
   }
-  /*public async getUIComponentAssetURL(assetPath: string): Promise<string> {
-    //if (assetPath.indexOf('@/') !== 0) return assetPath;    
-    return `${await Request.getAxiosBaseURL(this._serviceName)}/bpui/${assetPath}`
+  public async read<ReturnType = any>(
+    path: string,
+    query?: Record<string, string>
+  ): Promise<ReturnType> {
+    const self = this;
+    return new Promise(async (resolve, reject) => {
+      (await Request.getAxios(self.logger, self._serviceName))
+        .get<any, AxiosResponse<ReturnType>>(
+          path +
+            (query
+              ? `?${Object.keys(query)
+                  .map((x) => `${x}=${encodeURIComponent(query[x])}`)
+                  .join("&")}`
+              : "")
+        )
+        .then((resp) => {
+          resp.status === 200 ? resolve(resp.data) : reject(resp.data);
+        })
+        .catch((resp) => {
+          self.logger.error(resp.response.data);
+          reject(resp.response.data);
+        });
+    });
   }
-  public async getUIComponentLibURL(assetPath: string): Promise<string> {
-    //if (assetPath.indexOf('@/') !== 0) return assetPath;    
-    return `${await Request.getAxiosBaseURL(this._serviceName)}/bpui/lib/${assetPath.split('/bpui/lib/')[1]}`
-  }*/
-  /*public async window(): Promise<void> {
-
-  }*/
+  public async create<ReturnType = any, CreateType = any>(
+    path: string,
+    data: CreateType,
+    query?: Record<string, string>
+  ): Promise<ReturnType> {
+    const self = this;
+    return new Promise(async (resolve, reject) => {
+      (await Request.getAxios(self.logger, self._serviceName))
+        .post<any, AxiosResponse<ReturnType>, CreateType>(
+          path +
+            (query
+              ? `?${Object.keys(query)
+                  .map((x) => `${x}=${encodeURIComponent(query[x])}`)
+                  .join("&")}`
+              : ""),
+          data
+        )
+        .then((resp) => {
+          resp.status === 200 ? resolve(resp.data) : reject(resp.data);
+        })
+        .catch((resp) => {
+          self.logger.error(resp.response.data);
+          reject(resp.response.data);
+        });
+    });
+  }
+  public async update<ReturnType = any, UpdateType = any>(
+    path: string,
+    data: UpdateType,
+    query?: Record<string, string>
+  ): Promise<ReturnType> {
+    const self = this;
+    return new Promise(async (resolve, reject) => {
+      (await Request.getAxios(self.logger, self._serviceName))
+        .patch<any, AxiosResponse<ReturnType>, UpdateType>(
+          path +
+            (query
+              ? `?${Object.keys(query)
+                  .map((x) => `${x}=${encodeURIComponent(query[x])}`)
+                  .join("&")}`
+              : ""),
+          data
+        )
+        .then((resp) => {
+          resp.status === 200 ? resolve(resp.data) : reject(resp.data);
+        })
+        .catch((resp) => {
+          self.logger.error(resp.response.data);
+          reject(resp.response.data);
+        });
+    });
+  }
+  public async delete<ReturnType = any>(
+    path: string,
+    query?: Record<string, string>
+  ): Promise<ReturnType> {
+    const self = this;
+    return new Promise(async (resolve, reject) => {
+      (await Request.getAxios(self.logger, self._serviceName))
+        .delete<any, AxiosResponse<ReturnType>>(
+          path +
+            (query
+              ? `?${Object.keys(query)
+                  .map((x) => `${x}=${encodeURIComponent(query[x])}`)
+                  .join("&")}`
+              : "")
+        )
+        .then((resp) => {
+          resp.status === 200 ? resolve(resp.data) : reject(resp.data);
+        })
+        .catch((resp) => {
+          self.logger.error(resp.response.data);
+          reject(resp.response.data);
+        });
+    });
+  }
+  public async execute<ReturnType = any, ExecuteType = any>(
+    path: string,
+    data: ExecuteType,
+    query?: Record<string, string>
+  ): Promise<ReturnType> {
+    const self = this;
+    return new Promise(async (resolve, reject) => {
+      (await Request.getAxios(self.logger, self._serviceName))
+        .put<any, AxiosResponse<ReturnType>, ExecuteType>(
+          path +
+            (query
+              ? `?${Object.keys(query)
+                  .map((x) => `${x}=${encodeURIComponent(query[x])}`)
+                  .join("&")}`
+              : ""),
+          data
+        )
+        .then((resp) => {
+          resp.status === 200 ? resolve(resp.data) : reject(resp.data);
+        })
+        .catch((resp) => {
+          self.logger.error(resp.response.data);
+          reject(resp.response.data);
+        });
+    });
+  }
 }
