@@ -182,7 +182,8 @@ export class Plugin<
   }
   public async read<ReturnType = any>(
     path: string,
-    query?: Record<string, string>
+    query?: Record<string, string>,
+    headers?: Record<string, string>
   ): Promise<ReturnType> {
     const self = this;
     return new Promise(async (resolve, reject) => {
@@ -193,7 +194,10 @@ export class Plugin<
               ? `?${Object.keys(query)
                   .map((x) => `${x}=${encodeURIComponent(query[x])}`)
                   .join("&")}`
-              : "")
+              : ""),
+          {
+            headers,
+          }
         )
         .then((resp) => {
           resp.status === 200 ? resolve(resp.data) : reject(resp.data);
@@ -207,7 +211,8 @@ export class Plugin<
   public async create<ReturnType = any, CreateType = any>(
     path: string,
     data: CreateType,
-    query?: Record<string, string>
+    query?: Record<string, string>,
+    headers?: Record<string, string>
   ): Promise<ReturnType> {
     const self = this;
     return new Promise(async (resolve, reject) => {
@@ -219,7 +224,10 @@ export class Plugin<
                   .map((x) => `${x}=${encodeURIComponent(query[x])}`)
                   .join("&")}`
               : ""),
-          data
+          data,
+          {
+            headers,
+          }
         )
         .then((resp) => {
           resp.status === 200 ? resolve(resp.data) : reject(resp.data);
@@ -233,7 +241,8 @@ export class Plugin<
   public async update<ReturnType = any, UpdateType = any>(
     path: string,
     data: UpdateType,
-    query?: Record<string, string>
+    query?: Record<string, string>,
+    headers?: Record<string, string>
   ): Promise<ReturnType> {
     const self = this;
     return new Promise(async (resolve, reject) => {
@@ -245,7 +254,10 @@ export class Plugin<
                   .map((x) => `${x}=${encodeURIComponent(query[x])}`)
                   .join("&")}`
               : ""),
-          data
+          data,
+          {
+            headers,
+          }
         )
         .then((resp) => {
           resp.status === 200 ? resolve(resp.data) : reject(resp.data);
@@ -258,7 +270,8 @@ export class Plugin<
   }
   public async delete<ReturnType = any>(
     path: string,
-    query?: Record<string, string>
+    query?: Record<string, string>,
+    headers?: Record<string, string>
   ): Promise<ReturnType> {
     const self = this;
     return new Promise(async (resolve, reject) => {
@@ -269,7 +282,10 @@ export class Plugin<
               ? `?${Object.keys(query)
                   .map((x) => `${x}=${encodeURIComponent(query[x])}`)
                   .join("&")}`
-              : "")
+              : ""),
+          {
+            headers,
+          }
         )
         .then((resp) => {
           resp.status === 200 ? resolve(resp.data) : reject(resp.data);
@@ -283,7 +299,8 @@ export class Plugin<
   public async execute<ReturnType = any, ExecuteType = any>(
     path: string,
     data: ExecuteType,
-    query?: Record<string, string>
+    query?: Record<string, string>,
+    headers?: Record<string, string>
   ): Promise<ReturnType> {
     const self = this;
     return new Promise(async (resolve, reject) => {
@@ -295,7 +312,10 @@ export class Plugin<
                   .map((x) => `${x}=${encodeURIComponent(query[x])}`)
                   .join("&")}`
               : ""),
-          data
+          data,
+          {
+            headers,
+          }
         )
         .then((resp) => {
           resp.status === 200 ? resolve(resp.data) : reject(resp.data);
