@@ -4,7 +4,7 @@ import { Storage } from "./storage";
 import { Tools } from "@bettercorp/tools/lib/Tools";
 import { Logger } from "./logger";
 
-export type AxiosResponse<T = any> = {
+export type AxiosResponseData<T = any> = {
   status: number;
   data: T;
 };
@@ -104,7 +104,7 @@ export class WhoAmI<
             self.storage.get("host") || undefined
           )
         ).get<Definition>("/app");
-        if (resp.status !== 202) throw "Invalid APP";
+        if (resp.status !== 200) throw "Invalid APP";
         if (defaultParser !== undefined) {
           const respParsed = defaultParser(
             resp.data.config || {},

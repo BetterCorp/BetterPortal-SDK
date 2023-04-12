@@ -1,14 +1,18 @@
 import type { ServiceRoute, WhoAmIDefinition } from "./whoami";
-import { AxiosResponse, WhoAmI } from "./whoami";
+import { WhoAmI } from "./whoami";
 import { Storage } from "./storage";
 import { Request } from "./request";
 import type {
   BetterPortalCapabilityConfigurable,
+  BetterPortalCapabilityReturnCapabilities,
+  BetterPortalCapabilityReturnConfigurable,
   BetterPortalWindow,
+  PluginRequestHandler,
 } from "./globals";
 import type { IDictionary } from "@bettercorp/tools/lib/Interfaces";
 import { Tools } from "@bettercorp/tools";
 import { Logger } from "./logger";
+import { AxiosResponse } from 'axios';
 declare let window: BetterPortalWindow;
 
 export interface ServiceRouteExpanded extends ServiceRoute {
@@ -121,27 +125,26 @@ export class Plugin<
       .subscriptions;
   }
   public async getCapabilities(): Promise<
-    Array<BetterPortalCapabilityConfigurable>
+  BetterPortalCapabilityReturnCapabilities
   > {
     const resq = await (
       await Request.getAxios(this.logger, this._serviceName)
     ).get(`/bp/capabilities`);
-    return resq.data
-      .flat()
-      .filter(
-        (value: any, index: any, self: any) => self.indexOf(value) === index
-      );
+    let t: BetterPortalCapabilityReturnCapabilities = {} as any;
+    t.permissions
+    if (Tools.isArray(resq.data)) return {};
+    return resq.data;
   }
-  public async getCapability<T = any>(
-    capability: BetterPortalCapabilityConfigurable,
+  public async getCapability<T extends BetterPortalCapabilityConfigurable>(
+    capability: T,
     param?: string,
     optionalParams?: Record<string, string>
-  ): Promise<Array<T>> {
+  ): Promise<BetterPortalCapabilityReturnConfigurable<T>> {
     const resq = await (
       await Request.getAxios(this.logger, this._serviceName)
     ).get(
-      `/bp/capabilities/${capability}${
-        Tools.isNullOrUndefined(param) ? "" : `/${param}`
+      `/bp/capabilities/${capability}/${
+        Tools.isNullOrUndefined(param) ? "" : `${param}`
       }`,
       { params: optionalParams }
     );
@@ -180,11 +183,13 @@ export class Plugin<
       this._serviceName
     )}/bpui`;
   }
-  public async read<ReturnType = any>(
+  
+  public async read<ReturnType = any, RETRESP extends true | undefined = undefined>(
     path: string,
     query?: Record<string, string>,
-    headers?: Record<string, string>
-  ): Promise<ReturnType> {
+    headers?: Record<string, string>,
+    returnResponse?: RETRESP
+  ): Promise<PluginRequestHandler<ReturnType, RETRESP>> {
     const self = this;
     return new Promise(async (resolve, reject) => {
       (await Request.getAxios(self.logger, self._serviceName))
@@ -200,11 +205,11 @@ export class Plugin<
           }
         )
         .then((resp) => {
-          resp.status === 200 ? resolve(resp.data) : reject(resp.data);
+          resp.status === 200 ? resolve(returnResponse ? resp as any : resp.data) : reject(returnResponse ? resp : resp.data);
         })
         .catch((resp) => {
           self.logger.error(resp.response.data);
-          reject(resp.response.data);
+          reject(returnResponse ? resp : resp.response.data);
         });
     });
   }
